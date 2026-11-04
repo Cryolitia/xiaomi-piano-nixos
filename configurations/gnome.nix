@@ -38,8 +38,13 @@ in
   services.gnome.gnome-keyring.enable = true;
   services.libinput.enable = true;
   services.power-profiles-daemon.enable = true;
+  services.openssh.enable = true;
 
-  users.users.${defaultUser} = installationDefaults.users.users.${defaultUser};
+  users.users.${defaultUser} = installationDefaults.users.users.${defaultUser} // {
+    # Clear the upstream empty hash so the initial SSH password takes effect.
+    initialHashedPassword = null;
+    initialPassword = "nixos";
+  };
 
   security.sudo.wheelNeedsPassword = false;
 

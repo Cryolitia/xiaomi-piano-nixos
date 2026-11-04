@@ -67,7 +67,13 @@ fastboot -s SERIAL -S 128M flash sunuefi_esp result/esp.sparse.img
 fastboot -s SERIAL reboot
 ```
 
-在早期选择页进入 UEFI，再启动 Linux。系统自动登录 `nixos`，初始密码为空。initrd 在检查、挂载和扩容文件系统前，会核对 ext4 类型、`PIANOROOT` 标签和 `sunuefi_root` 分区名；首次启动只扩大该 ext4 文件系统，不修改 GPT。
+在早期选择页进入 UEFI，再启动 Linux。系统自动登录 `nixos`，初始密码为 `nixos`。initrd 在检查、挂载和扩容文件系统前，会核对 ext4 类型、`PIANOROOT` 标签和 `sunuefi_root` 分区名；首次启动只扩大该 ext4 文件系统，不修改 GPT。
+
+连接 Wi-Fi 后，在网络设置中查看平板的 IP 地址。同一网络的电脑可通过 SSH 登录，命令中的 `TABLET_IP` 替换为该地址：
+
+```sh
+ssh nixos@TABLET_IP
+```
 
 启动失败时，长按电源重启，在早期选择页按音量上回 Android。恢复原 Linux 系统需要通过原厂 Fastboot 分别恢复完整 root 备份和 ESP 备份；只恢复 ESP 不能恢复已经覆盖的 root 数据。
 
