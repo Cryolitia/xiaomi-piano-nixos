@@ -1,9 +1,18 @@
 {
   config,
   lib,
+  modulesPath,
   pkgs,
   ...
 }:
+let
+  # Reuse the upstream account without importing installer services or root login.
+  installationDefaults =
+    (import (modulesPath + "/profiles/installation-device.nix") {
+      inherit config lib pkgs;
+    }).config;
+  defaultUser = installationDefaults.services.getty.autologinUser;
+in
 {
   # These desktop and login defaults belong to the validation image. Importing
   # the hardware module alone must not change a consumer's users or desktop.
@@ -24,24 +33,13 @@
   services.desktopManager.gnome.enable = true;
   services.displayManager.autoLogin = {
     enable = true;
-    user = "piano";
+    user = defaultUser;
   };
   services.gnome.gnome-keyring.enable = true;
   services.libinput.enable = true;
   services.power-profiles-daemon.enable = true;
 
-  users.users.piano = {
-    isNormalUser = true;
-    description = "Piano";
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "video"
-      "audio"
-      "input"
-    ];
-    initialPassword = "piano123456";
-  };
+  users.users.${defaultUser} = installationDefaults.users.users.${defaultUser};
 
   security.sudo.wheelNeedsPassword = false;
 
