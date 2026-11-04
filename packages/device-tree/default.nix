@@ -27,9 +27,9 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    # The Python builder verifies the base tree and optional RAM profile,
-    # then applies the same ordered overlays used by SunUEFI's Linux image.
-    python3 ${./build.py} ${sunuefiSrc} ${panel} \
+    # Keep the builder and local display overlay together in the store.
+    # The remaining board overlays follow the pinned SunUEFI policy.
+    python3 ${./.}/build.py ${sunuefiSrc} ${panel} \
       ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")} \
       ${lib.escapeShellArg (if memoryLayout == null then "-" else "${memoryLayout}")}
 
