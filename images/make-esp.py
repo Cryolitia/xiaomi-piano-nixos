@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import struct
@@ -66,16 +67,31 @@ def build(args):
             path = tree / name
             require(path.is_file() and path.stat().st_size == info["bytes"]
                     and digest(path) == info["sha256"], f"Boot file differs: {name}")
+        require(re.fullmatch(r"loader/entries/nixos-[0-9a-f]{64}\.conf", boot.get("entry", "")),
+                "Expected a standard NixOS BLS entry name.")
+        entry_contents = (tree / boot["entry"]).read_bytes()
+        require(Path(boot["entry"]).name == "nixos-" + hashlib.sha256(entry_contents).hexdigest() + ".conf",
+                "The BLS entry name does not match its contents.")
+        entry = {}
+        for line in (tree / boot["entry"]).read_text().splitlines():
+            key, value = line.split(maxsplit=1)
+            require(key not in entry, f"Duplicate BLS field: {key}")
+            entry[key] = value
+        require(set(entry) == {"title", "linux", "initrd", "devicetree", "options", "sort-key"},
+                "The NixOS BLS entry must load Linux, initrd and the device tree directly.")
+        require(set(boot["payloads"]) == {"linux", "initrd", "devicetree"},
+                "Expected one matching Linux, initrd and device tree.")
+        for key, filename in boot["payloads"].items():
+            require(re.fullmatch(r"EFI/nixos/[A-Za-z0-9+._=-]+\.efi", filename)
+                    and filename in boot["files"] and entry[key] == "/" + filename,
+                    f"BLS {key} does not select the matching boot file.")
+        require(entry["options"] == boot["commandLine"], "BLS kernel options differ from the manifest.")
+        check_efi(tree / entry["linux"].lstrip("/"))
         (tree / "EFI/BOOT").mkdir(parents=True)
         shutil.copyfile(args.systemd_boot, tree / "EFI/BOOT/BOOTAA64.EFI")
-        shutil.copyfile(args.linux_loader, tree / "EFI/Piano/LinuxBoot.efi")
         require((tree / "EFI/BOOT/BOOTAA64.EFI").stat().st_size <= 4 * 1024**2,
                 "systemd-boot exceeds the resident core's 4 MiB application limit.")
-        for path in (tree / "EFI/BOOT/BOOTAA64.EFI", tree / "EFI/Piano/LinuxBoot.efi"):
-            check_efi(path)
-        (tree / "loader/loader.conf").write_text(
-            "default debian.conf\ntimeout 0\neditor no\nauto-entries no\n"
-            "auto-firmware no\nconsole-mode keep\n")
+        check_efi(tree / "EFI/BOOT/BOOTAA64.EFI")
         files = sorted(path for path in tree.rglob("*") if path.is_file())
         require(sum(path.stat().st_size for path in files) + 2 * 1024**2 < CAPACITY,
                 "Linux boot files exceed the 512 MiB ESP capacity.")
@@ -144,7 +160,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--boot-files", type=Path, required=True)
     parser.add_argument("--systemd-boot", type=Path, required=True)
-    parser.add_argument("--linux-loader", type=Path, required=True)
     parser.add_argument("--sparse-tool", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     build(parser.parse_args())

@@ -52,7 +52,6 @@
         {
           kernel = piano.kernel;
           firmware = piano.firmware;
-          linux-loader = piano.linuxLoader;
           device-tree = piano.deviceTree;
           gnome-image = configurations.piano-gnome.config.system.build.pianoImage;
           gnome-24gb-image = configurations.piano-24gb-gnome.config.system.build.pianoImage;
@@ -68,7 +67,6 @@
           cfg = hardwareOnly.config;
         in
         {
-          linux-loader = pkgs.callPackage ./packages/linux-loader { };
           module-interface =
             assert !(cfg.fileSystems ? "/");
             assert !cfg.services.desktopManager.gnome.enable;

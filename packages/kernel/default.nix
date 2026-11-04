@@ -70,6 +70,8 @@ let
           CMDLINE = lib.mkForce (freeform "");
           CMDLINE_FORCE = lib.mkForce no;
           CMDLINE_EXTEND = lib.mkForce no;
+          EFI = lib.mkForce yes;
+          EFI_STUB = lib.mkForce yes;
           BLK_DEV_INITRD = lib.mkForce yes;
           RD_GZIP = lib.mkForce yes;
           RD_XZ = lib.mkForce yes;

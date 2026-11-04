@@ -8,7 +8,7 @@
 
 - nixpkgs 提供 NixOS、GNOME、systemd-boot 和常规用户空间。
 - Linux 基线与 SunUEFI 的有序补丁共同组成 Piano 内核；补丁还按原 `series.json` 的 SHA256 校验。
-- SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM、固件覆盖清单，以及 Linux 启动应用和 PumpLib 源码。
+- SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM、固件覆盖清单，以及稀疏镜像打包工具。
 - debian-piano 提供板级初始化和音频拓扑构建来源；piano-firmware 提供设备固件。
 - piano-mesa 提供 A830v1 设备 ID 补丁；AudioReach 提供音频拓扑源码。
 
@@ -16,13 +16,13 @@
 
 ## 启动与硬件边界
 
-Linux 设备树的内存表由本项目按已验证容量选择；已有 SunUEFI 负责面板选择和 Gunyah 资源交接，不会替换内存表。Linux 载荷采用它支持的 Android boot header v2 容器；这个 `boot.img` 装的是 Linux 内核、initrd 和设备树，不是要刷入 Android BOOT 分区的引导镜像。
+Linux 设备树的内存表由本项目按容量选择。启动链为 SunUEFI → systemd-boot → Linux EFI stub：systemd-boot 按标准 BLS 启动项加载匹配的内核、initrd 和设备树，命令行指向对应的 NixOS 系统。SunUEFI 通过标准设备树修正协议保留本次启动的面板、Gunyah 参数和内存预留，并在 `ExitBootServices` 时完成硬件退出。
 
-ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。启动链为 SunUEFI → systemd-boot → `EFI/Piano/LinuxBoot.efi` → 驻留核心加载 `EFI/Piano/stable/boot.img`。systemd-boot 来自 nixpkgs；Linux 启动应用复用固定 SunUEFI 源码及 PumpLib，以 Clang/LLD 独立构建，不编译 UEFI 固件或 Android 模块。
+ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。`loader/entries/nixos-*.conf` 使用 `linux`、`initrd`、`devicetree` 和 `options`；载荷使用 nixpkgs systemd-boot 模块的 `/EFI/nixos/<store 名称>-<文件名>.efi` 平铺布局。初始离线 ESP 从系统的 `boot.json` 及其设备树扩展生成入口；后续更新、代际选择和清理完全使用 NixOS 自带的 systemd-boot 模块。`installBootLoader` 只包装写入前的分区身份检查，不另行实现更新器。本项目不构建 UEFI 固件或 Android 模块。
 
-验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 同时提供 root 和 ESP 的原始镜像、稀疏镜像，以及统一的清单和摘要。`result/boot-files/` 提供同次构建的 Linux 载荷，供已有 ESP 更新。
+验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 同时提供 root 和 ESP 的原始镜像、稀疏镜像，以及统一的清单和摘要。`result/boot-files/` 提供同次构建的离线 Linux 启动文件及摘要。镜像打包校验 EFI-stub、initrd、设备树、BLS 路径和 FAT32 读回；运行时由标准模块消费每代 bootspec，`nixos-rebuild` 会连同设备树一起更新启动文件。
 
-构建会拒绝超过现有交接窗口的载荷：initrd 16 MiB、总容器 128 MiB、设备树约 2 MiB。总容器超过 64 MiB 时，需要支持 128 MiB 载荷的 SunUEFI 驻留核心，单独更新 ESP 内的启动应用不会改变固件上限。验证配置使用 nixos-unstable 的 systemd initrd 和 XZ 压缩，不引入旧 Debian initramfs 对 `/usr/lib` 的要求。
+标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理。只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 
 initrd 用单个服务逐一加载 SMMU、pinctrl、CPUCP mailbox、UFS PHY 和 UFS 驱动，避免 systemd 的黑名单检查与并发模块加载改变次序。stage1 和 stage2 从各自 systemd 的 `80-drivers.rules` 派生规则，只排除 SoC 总线的默认 modalias 加载，保留其他 udev 操作。显示、触摸、无线和 ADSP 按现有板级顺序初始化，普通 modalias 自动加载不能抢先启动这些 DMA 主设备。BSP 适配保留实时 sysfs DMA、时钟及资源检查，不把某次采集的机器状态作为通用硬件事实。当前内核序列只有 MiPPS 用户态传输接口，因此验证配置采用普通 PD 降压充电，不自动启用未经接入的快充认证或直充。
 

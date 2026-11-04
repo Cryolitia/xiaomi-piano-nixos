@@ -1,8 +1,8 @@
 # 安装 GNOME 验证系统
 
-验证镜像用于已经安装 SunUEFI、已有 `sunuefi_esp` 和 `sunuefi_root` 的 piano。启动镜像（ESP）包含 systemd-boot、Linux 启动应用、内核、initrd 和设备树；系统镜像（root）包含 NixOS。首次安装需要写入同一次构建的两份镜像。
+验证镜像用于已经安装 SunUEFI、已有 `sunuefi_esp` 和 `sunuefi_root` 的 piano。启动镜像（ESP）包含 systemd-boot、EFI-stub 内核、initrd 和设备树；系统镜像（root）包含 NixOS。首次安装需要写入同一次构建的两份镜像。
 
-设备树按 `hardware.xiaomi.piano.memoryGiB` 选择已有依据的内存布局。16 GB 使用原厂基准，24 GB 使用当前实机已核对的改装布局；SunUEFI 只修正运行时面板和 Gunyah 参数，不会替换内存表。启动前需先安装支持 128 MiB Linux 载荷的 SunUEFI 固件；旧固件的 64 MiB 上限无法启动本镜像，仅更新 ESP 不够。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。
+设备树按 `hardware.xiaomi.piano.memoryGiB` 选择已有依据的内存布局。16 GB 使用原厂基准，24 GB 使用当前实机已核对的改装布局；systemd-boot 加载这份设备树，SunUEFI 通过标准修正协议补充本次启动的面板和 Gunyah 参数。启动前需安装支持标准 EFI 内存图、设备树修正和内核退出流程的 SunUEFI；只有 128 MiB raw 启动支持的旧固件仍需更新。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。
 
 ## 构建与校验
 
@@ -73,6 +73,6 @@ fastboot -s SERIAL reboot
 
 ## 后续更新
 
-验证配置安装了外部启动文件更新钩子。在 NixOS 内执行 `nixos-rebuild boot` 时，钩子核对 `/boot` 确实是现有 SunUEFI ESP，再生成并校验 Linux 启动文件，最后替换 `boot.img`。它不更新 UEFI 固件、systemd-boot 或 Android 启动分区。
+验证配置启用 NixOS 自带的 systemd-boot 模块。在 NixOS 内使用 `sudo nixos-rebuild boot --flake .#piano-gnome` 更新下次启动的系统；24 GB 改装机使用 `.#piano-24gb-gnome`。命令需要在本项目目录执行。更新前会核对 `/boot` 与 `/` 是同一设备上的 SunUEFI 独立分区；随后由标准模块安装匹配的内核、initrd、设备树和启动项，并更新 systemd-boot。默认保留最近五代启动项，不写 EFI 启动变量、UEFI 固件或 Android 启动分区。
 
-需要从其他 Linux 手工更新时，从同一构建结果的 `result/boot-files/EFI/Piano/stable/` 取得四个 Linux 载荷文件，从 `result/boot-files/loader/entries/debian.conf` 取得启动条目。将这些文件更新到已挂载的 ESP，保留现有 `EFI/BOOT/BOOTAA64.EFI`、`EFI/Piano/LinuxBoot.efi` 和其他文件，最后替换 `boot.img`；更新后核对摘要并卸载 ESP。新的启动文件必须与已安装或即将写入的 root 匹配。
+`boot-files/` 是离线安装所用的配套 Linux 启动文件，包含标准 `loader/entries/nixos-*.conf` 和平铺在 `EFI/nixos/` 下的载荷。通常直接在 NixOS 内更新即可。需要恢复系统时，使用同一次构建的完整 ESP 和 root 镜像，或恢复此前配对保存的两份分区备份。

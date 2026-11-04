@@ -9,6 +9,5 @@ in
   firmware = pkgs.callPackage ./firmware { };
   deviceTree = pkgs.callPackage ./device-tree { };
   bsp = pkgs.callPackage ./bsp { };
-  linuxLoader = pkgs.callPackage ./linux-loader { };
   mesa = pkgs.callPackage ./mesa { };
 }

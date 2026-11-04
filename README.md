@@ -61,7 +61,7 @@ nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
 
 验证系统使用 GNOME、中文界面、Chromium、NetworkManager 和 IBus 拼音，自动登录 `piano`，密码为 `piano123456`。这些设置只属于验证配置，不会随硬件模块导入自己的系统。
 
-一次构建会在同一个 `result/` 中同时生成 `root.ext4.img`、`root.sparse.img`、`esp.img` 和 `esp.sparse.img`，并提供统一的 `manifest.json` 和 `SHA256SUMS`。root 系统镜像与 512 MiB 的 ESP 启动镜像来自同一系统配置，可通过原厂 Fastboot 写入已有分区。ESP 包含 systemd-boot、Linux 启动应用和匹配的 Linux 载荷，复用已经安装的 SunUEFI。手工更新启动载荷时使用同一 `result/boot-files/` 目录。刷写步骤与启动前提见 [安装](docs/install.md)。
+一次构建会在同一个 `result/` 中同时生成 `root.ext4.img`、`root.sparse.img`、`esp.img` 和 `esp.sparse.img`，并提供统一的 `manifest.json` 和 `SHA256SUMS`。root 系统镜像与 512 MiB 的 ESP 启动镜像来自同一系统配置，可通过原厂 Fastboot 写入已有分区。ESP 包含 systemd-boot、匹配的 EFI-stub 内核、initrd 和设备树，复用支持标准 EFI 启动的 SunUEFI。安装后通过标准 `nixos-rebuild` 更新系统和启动文件，匹配的设备树随每代一起安装。刷写步骤与启动前提见 [安装](docs/install.md)。
 
 ## 目录
 

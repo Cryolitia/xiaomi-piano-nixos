@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  pianoPackages,
   utils,
   ...
 }:
@@ -16,20 +15,9 @@ let
   bootTools = pkgs.writeShellApplication {
     name = "piano-make-boot-files";
     runtimeInputs = with pkgs; [
-      android-tools
-      coreutils
       python3
     ];
     text = builtins.readFile ./make-boot-files.sh;
-  };
-  installBootFiles = pkgs.writeShellApplication {
-    name = "piano-install-boot-files";
-    runtimeInputs = [
-      bootTools
-      pkgs.coreutils
-      pkgs.util-linux
-    ];
-    text = builtins.readFile ./install-boot-files.sh;
   };
   bootFiles =
     pkgs.runCommand "piano-linux-boot-files"
@@ -37,8 +25,7 @@ let
         nativeBuildInputs = [ bootTools ];
       }
       ''
-        piano-make-boot-files ${config.system.build.toplevel} \
-          ${config.hardware.deviceTree.package}/piano.dtb "$out"
+        piano-make-boot-files ${config.system.build.toplevel} "$out"
       '';
   rootFilesystem = pkgs.callPackage (pkgs.path + "/nixos/lib/make-ext4-fs.nix") {
     storePaths = [ config.system.build.toplevel ];
@@ -51,7 +38,6 @@ let
   };
   espImage = pkgs.callPackage ./esp.nix {
     inherit bootFiles;
-    linuxLoader = pianoPackages.linuxLoader;
   };
   image =
     pkgs.runCommand "piano-nixos-gnome-image"
@@ -106,7 +92,7 @@ let
             'espLabel': esp['espLabel'],
             'expandedEspBytes': esp['expandedEspBytes'],
             'espSectorBytes': esp['sectorBytes'],
-            'bootFilesDirectory': '/EFI/Piano/stable',
+            'bootFilesDirectory': '/EFI/nixos',
             'files': files,
         }, indent=2) + '\n')
         PY
@@ -115,10 +101,50 @@ let
       '';
 in
 {
-  options.piano.image.rootSizeMiB = mkOption {
-    type = types.ints.positive;
-    default = 16384;
-    description = "Size of the standalone ext4 validation image, in MiB.";
+  options = {
+    piano.image.rootSizeMiB = mkOption {
+      type = types.ints.positive;
+      default = 16384;
+      description = "Size of the standalone ext4 validation image, in MiB.";
+    };
+    system.build.installBootLoader = mkOption {
+      # Keep the standard NixOS updater; only check the image's dedicated
+      # partition identities before it can write the ESP.
+      apply =
+        installer:
+        pkgs.writeShellScript "install-piano-systemd-boot" ''
+          set -euo pipefail
+          export PATH=${
+            lib.makeBinPath [
+              pkgs.coreutils
+              pkgs.util-linuxMinimal
+            ]
+          }
+          fail() { echo "Piano boot update refused: $*" >&2; exit 1; }
+          esp=${lib.escapeShellArg config.boot.loader.efi.efiSysMountPoint}
+          device=$(findmnt --noheadings --raw --output SOURCE --mountpoint "$esp") ||
+            fail 'Mount the SunUEFI ESP before updating.'
+          test -b "$device" || fail 'The ESP is not a block-device filesystem.'
+          test "$(blkid -p -s PART_ENTRY_NAME -o value "$device")" = sunuefi_esp ||
+            fail 'The ESP is not the sunuefi_esp partition.'
+          test "$(blkid -p -s LABEL -o value "$device")" = SUNUEFI_ESP ||
+            fail 'The ESP filesystem label is not SUNUEFI_ESP.'
+          test "$(findmnt --noheadings --raw --output FSTYPE --mountpoint "$esp")" = vfat ||
+            fail 'The ESP must use FAT32.'
+          root_device=$(findmnt --noheadings --raw --output SOURCE --mountpoint /)
+          test -b "$root_device" || fail 'The root is not a block-device filesystem.'
+          test "$(blkid -p -s PART_ENTRY_NAME -o value "$root_device")" = sunuefi_root ||
+            fail 'The root is not the sunuefi_root partition.'
+          test "$(blkid -p -s LABEL -o value "$root_device")" = PIANOROOT ||
+            fail 'The root filesystem label is not PIANOROOT.'
+          test "$(findmnt --noheadings --raw --output FSTYPE --mountpoint /)" = ext4 ||
+            fail 'The root must use ext4.'
+          test "$(lsblk --noheadings --raw --output PKNAME "$root_device")" = \
+            "$(lsblk --noheadings --raw --output PKNAME "$device")" ||
+            fail 'The ESP and root must belong to the same disk.'
+          exec ${installer} "$@"
+        '';
+    };
   };
 
   config = {
@@ -193,10 +219,14 @@ in
       "ext4"
       "vfat"
     ];
-    boot.loader.external = {
+    boot.loader.systemd-boot = {
       enable = true;
-      installHook = "${installBootFiles}/bin/piano-install-boot-files";
+      installDeviceTree = true;
+      configurationLimit = mkDefault 5;
+      editor = false;
     };
+    boot.loader.timeout = mkDefault 0;
+    boot.loader.efi.efiSysMountPoint = "/boot";
     boot.loader.generic-extlinux-compatible.enable = false;
     boot.loader.efi.canTouchEfiVariables = false;
     fileSystems = {
