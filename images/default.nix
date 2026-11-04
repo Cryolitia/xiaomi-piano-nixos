@@ -132,13 +132,6 @@ in
 
     # Check the dedicated root identity before fsck or automatic filesystem growth.
     boot.initrd = {
-      # Keep the error-screen and console-setup services required by NixOS.
-      systemd.package = mkDefault (
-        pkgs.systemdMinimal.override {
-          withQrencode = true;
-          withVConsole = true;
-        }
-      );
       systemd.extraBin.blkid = "${config.boot.initrd.systemd.package.util-linux}/bin/blkid";
       systemd.services.piano-check-root = {
         description = "Check the Piano root partition before filesystem access";
