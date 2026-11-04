@@ -10,5 +10,6 @@ in
   fingerprint = pkgs.callPackage ./fingerprint { };
   deviceTree = pkgs.callPackage ./device-tree { };
   bsp = pkgs.callPackage ./bsp { };
+  sensors = pkgs.callPackage ./sensors { };
   mesa = pkgs.callPackage ./mesa { };
 }

@@ -19,6 +19,7 @@ in
     ./runtime.nix
     ./audio.nix
     ./fingerprint.nix
+    ./sensors.nix
   ];
 
   options.hardware.xiaomi.piano.memoryGiB = lib.mkOption {
