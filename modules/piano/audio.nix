@@ -13,6 +13,7 @@ let
     '';
   });
   ucmPath = "${ucm}/share/alsa/ucm2";
+
   stereo = {
     "channelmix.upmix" = true;
     "channelmix.upmix-method" = "simple";
@@ -23,10 +24,13 @@ in
 {
   # This extends the standard UCM tree instead of hiding its common includes.
   environment.sessionVariables.ALSA_CONFIG_UCM2 = ucmPath;
+
   services.pipewire.extraConfig = {
     client."60-piano-audio"."stream.properties" = stereo;
     pipewire-pulse."60-piano-audio"."stream.properties" = stereo;
   };
+
+  # Rename the physical ALSA endpoints; keep backend details out of GNOME.
   services.pipewire.wireplumber.extraConfig."50-piano-audio"."monitor.alsa.rules" = [
     {
       matches = [ { "node.name" = "alsa_output.platform-soc_sound-ml.HiFi__Speaker__sink"; } ];
@@ -44,6 +48,7 @@ in
       };
     }
   ];
+
   systemd.user.services = lib.mkIf config.services.pipewire.enable {
     pipewire.environment.ALSA_CONFIG_UCM2 = ucmPath;
     wireplumber = lib.mkIf config.services.pipewire.wireplumber.enable {

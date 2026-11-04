@@ -36,6 +36,7 @@ in
     _module.args.pianoPackages = packages // {
       inherit deviceTree;
     };
+
     nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
     assertions = [
       {
@@ -50,6 +51,7 @@ in
     ];
     hardware.enableRedistributableFirmware = lib.mkDefault true;
     hardware.bluetooth.enable = lib.mkDefault true;
+
     hardware.graphics = {
       enable = lib.mkDefault true;
       package = lib.mkOverride 990 packages.mesa;

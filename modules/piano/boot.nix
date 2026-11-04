@@ -14,11 +14,15 @@ let
     "phy_qcom_qmp_ufs"
     "ufs_qcom"
   ];
+
   moduleOrderRules =
     systemdPackage:
     pkgs.runCommand "piano-module-order-rules" { } ''
       rules="$out/lib/udev/rules.d/80-drivers.rules"
       install -Dm644 ${systemdPackage}/lib/udev/rules.d/80-drivers.rules "$rules"
+
+      # Refuse an upstream rule layout change instead of silently allowing
+      # modalias autoloading to race the board's ordered platform units.
       kmod_rule='ENV{MODALIAS}=="?*", RUN{builtin}+="kmod load"'
       test "$(grep -Fc "$kmod_rule" "$rules")" -eq 1
       substituteInPlace "$rules" --replace-fail "$kmod_rule" \
@@ -28,24 +32,29 @@ in
 {
   # Root devices, filesystems, desktop and bootloader remain caller policy.
   boot.kernelPackages = lib.mkDefault pianoPackages.kernelPackages;
+
   hardware.deviceTree = {
     enable = lib.mkDefault true;
     dtbSource = lib.mkDefault pianoPackages.deviceTree;
     name = lib.mkDefault "piano.dtb";
   };
+
   boot.kernelParams = [
     "clk_ignore_unused"
     "pd_ignore_unused"
     "iommu.passthrough=1"
   ];
-  # The board kernel does not build NixOS' generic PC/virtual-machine drivers.
+
+  # The board kernel omits drivers from NixOS' generic PC/VM module list.
+  # Loading order is enforced by the storage service and udev rules below.
   boot.initrd.includeDefaultModules = lib.mkDefault false;
   boot.initrd.availableKernelModules = storageModules ++ [
     "sd_mod"
     "ext4"
   ];
-  # systemd-modules-load honors blacklists and loads in parallel. These seeds
-  # must use normal modprobe, in the board's storage initialization order.
+
+  # Load the storage seeds with explicit modprobe calls in board order,
+  # before the general udev coldplug pass.
   boot.initrd.systemd.services.piano-storage = {
     description = "Load Piano storage drivers in order";
     requiredBy = [
@@ -78,12 +87,14 @@ in
       done
     '';
   };
+
   # NixOS merges rule files by basename; put this copy after the standard
   # package. Only default SoC autoloading is skipped, not other udev actions.
   boot.initrd.services.udev.packages = lib.mkAfter [
     (moduleOrderRules config.boot.initrd.systemd.package)
   ];
   services.udev.packages = lib.mkAfter [ (moduleOrderRules config.systemd.package) ];
+
   boot.kernelModules = [
     "qcom_pon"
     "qcom_cpucp_mbox"

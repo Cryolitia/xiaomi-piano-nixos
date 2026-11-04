@@ -15,6 +15,9 @@ let
   seriesPath = sunuefiSrc + "/${policy.kernel.patch_series}";
   series = builtins.fromJSON (builtins.readFile seriesPath);
   patchDirectory = builtins.dirOf seriesPath;
+
+  # A source revision alone is insufficient: preserve the ordered series and
+  # verify each patch's bytes before handing it to the kernel builder.
   checkedPatch =
     entry:
     let
@@ -22,6 +25,7 @@ let
     in
     assert builtins.hashFile "sha256" path == entry.sha256;
     path;
+
   source = applyPatches {
     name = "linux-piano-source";
     src = fetchFromGitHub {
@@ -36,6 +40,7 @@ let
       ${buildPackages.python3.interpreter} ${./config.py} . ${sunuefiSrc}
     '';
   };
+
   overrides = builtins.removeAttrs args [
     "lib"
     "buildLinux"
@@ -47,6 +52,7 @@ let
     "structuredExtraConfig"
     "extraMeta"
   ];
+
   # Keep the standard buildLinux override interface: NixOS adds kernel patches,
   # feature flags and its reproducible randomization seed through it.
   kernel = buildLinux (
@@ -67,6 +73,9 @@ let
         (with lib.kernel; {
           LOCALVERSION = lib.mkForce (freeform "-piano-nixos");
           LOCALVERSION_AUTO = lib.mkForce no;
+
+          # Boot arguments and initrd are supplied by the importing NixOS
+          # system. Keep the standard EFI entry and initrd formats available.
           CMDLINE = lib.mkForce (freeform "");
           CMDLINE_FORCE = lib.mkForce no;
           CMDLINE_EXTEND = lib.mkForce no;
@@ -76,6 +85,7 @@ let
           RD_GZIP = lib.mkForce yes;
           RD_XZ = lib.mkForce yes;
           RD_ZSTD = lib.mkForce yes;
+
           DEVTMPFS = lib.mkForce yes;
           DEVTMPFS_MOUNT = lib.mkForce yes;
           EXT4_FS = lib.mkForce yes;
@@ -89,6 +99,7 @@ let
           OVERLAY_FS = lib.mkDefault module;
           SQUASHFS = lib.mkDefault module;
           RUST = lib.mkForce no;
+
           # These consumers are started in the board's verified order. Nixpkgs'
           # generic config must not turn them into early built-in DMA masters.
           ARM_SMMU = lib.mkForce module;
@@ -103,6 +114,7 @@ let
           SCSI_UFSHCD = lib.mkForce module;
           SCSI_UFS_QCOM = lib.mkForce module;
           PHY_QCOM_QMP_UFS = lib.mkForce module;
+
           DEBUG_INFO = lib.mkForce no;
           DEBUG_INFO_NONE = lib.mkForce yes;
           DEBUG_INFO_BTF = lib.mkForce no;
@@ -120,14 +132,21 @@ in
 kernel.overrideAttrs (old: {
   postConfigure = (old.postConfigure or "") + ''
     piano_config="$buildRoot/.config"
+
+    # Check the final Kconfig result, rather than trusting requested settings
+    # that the upstream kernel may have renamed or made conditional.
     for setting in MODULES BLK_DEV_INITRD RD_XZ DEVTMPFS CGROUPS FHANDLE SECCOMP EXT4_FS; do
       grep -qx "CONFIG_$setting=y" "$piano_config" || {
         echo "Missing required Piano/NixOS kernel setting: $setting" >&2
         exit 1
       }
     done
+
     grep -qx 'CONFIG_CMDLINE=""' "$piano_config"
     ! grep -qx 'CONFIG_CMDLINE_FORCE=y' "$piano_config"
+
+    # An early built-in DMA consumer could start before its SMMU or clocks.
+    # These drivers must stay modular for the board's ordered bring-up units.
     for setting in ARM_SMMU DRM_MSM QCOM_Q6V5_PAS QCOM_PMIC_GLINK PINCTRL_SM8750 \
                    QCOM_GPI_DMA I2C_QCOM_GENI SPI_QCOM_GENI PHY_QCOM_QMP_PCIE \
                    SCSI_UFSHCD SCSI_UFS_QCOM PHY_QCOM_QMP_UFS; do

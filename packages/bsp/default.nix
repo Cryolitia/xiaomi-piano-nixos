@@ -49,25 +49,37 @@ stdenv.mkDerivation {
     m4
     alsa-utils
   ];
+
   dontConfigure = true;
+
   buildPhase = ''
     runHook preBuild
+
+    # Adapt the pinned runtime scripts before compiling their touch reader.
     python3 ${./transform.py} \
       --sunuefi "$PWD" --debian ${debianPianoSrc} --output "$out" \
       --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3 \
       --blkid ${util-linux}/bin/blkid --modprobe ${kmod}/bin/modprobe
+
     make -C linux/userspace/pen OUT="$PWD/pen-build" \
       CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
     $CC -O2 -Ilinux/userspace/pen -c piano-touch-view.c -o touch.o
     mkdir -p "$out/bin"
     $CXX touch.o pen-build/libpiano-pen-core.a -lm -o "$out/bin/piano-touch-view"
+
+    # Decode the generated topology as a build-time consistency check.
     bash ${debianPianoSrc}/scripts/build-topology.sh ${audioReachSrc} "$out/lib/firmware"
     alsatplg -d "$out/lib/firmware/qcom/sm8750/Xiaomi Pad 8 Pro-tplg.bin" -o topology-decoded.conf
+
     runHook postBuild
   '';
+
   installPhase = ''
     runHook preInstall
+
     cp pen-build/piano-pen-offline "$out/bin/"
+
+    # Give all runtime scripts the same explicit tool and typelib search paths.
     for script in "$out"/libexec/piano/*; do
       if test -x "$script" && ! test -L "$script"; then
         wrapProgram "$script" \
@@ -86,11 +98,14 @@ stdenv.mkDerivation {
           }
       fi
     done
+
     install -Dm644 ${sunuefiSrc}/LICENSE.md "$out/share/licenses/piano-bsp/LICENSE.sunuefi.md"
     install -Dm644 ${debianPianoSrc}/LICENSE "$out/share/licenses/piano-bsp/LICENSE.debian-piano"
     install -Dm644 linux/userspace/pen/Apache-2.0.txt "$out/share/licenses/piano-bsp/Apache-2.0.txt"
+
     runHook postInstall
   '';
+
   meta = {
     description = "Ordered Xiaomi Pad 8 Pro hardware bring-up and touch input";
     platforms = lib.platforms.linux;
