@@ -79,6 +79,19 @@ let
           OVERLAY_FS = lib.mkDefault module;
           SQUASHFS = lib.mkDefault module;
           RUST = lib.mkForce no;
+          # Preserve the board's log size and event tracing without the generic
+          # function-entry instrumentation. The resident loader accepts 64 MiB.
+          LOG_BUF_SHIFT = lib.mkForce (freeform "17");
+          FTRACE = lib.mkForce yes;
+          ENABLE_DEFAULT_TRACERS = lib.mkForce yes;
+          FUNCTION_TRACER = lib.mkForce no;
+          FUNCTION_GRAPH_TRACER = lib.mkForce no;
+          FUNCTION_PROFILER = lib.mkForce no;
+          STACK_TRACER = lib.mkForce no;
+          DYNAMIC_FTRACE = lib.mkForce no;
+          SCHED_TRACER = lib.mkForce no;
+          # Keep Nix's module certificates, with room for over 4000 modules.
+          SYSTEM_EXTRA_CERTIFICATE_SIZE = lib.mkForce (freeform "1048576");
           # These consumers are started in the board's verified order. Nixpkgs'
           # generic config must not turn them into early built-in DMA masters.
           ARM_SMMU = lib.mkForce module;
@@ -117,6 +130,11 @@ kernel.overrideAttrs (old: {
       }
     done
     grep -qx 'CONFIG_CMDLINE=""' "$piano_config"
+    grep -qx 'CONFIG_LOG_BUF_SHIFT=17' "$piano_config"
+    grep -qx 'CONFIG_SYSTEM_EXTRA_CERTIFICATE=y' "$piano_config"
+    grep -qx 'CONFIG_SYSTEM_EXTRA_CERTIFICATE_SIZE=1048576' "$piano_config"
+    grep -qx 'CONFIG_FTRACE=y' "$piano_config"
+    ! grep -qx 'CONFIG_FUNCTION_TRACER=y' "$piano_config"
     ! grep -qx 'CONFIG_CMDLINE_FORCE=y' "$piano_config"
     for setting in ARM_SMMU DRM_MSM QCOM_Q6V5_PAS QCOM_PMIC_GLINK PINCTRL_SM8750 \
                    QCOM_GPI_DMA I2C_QCOM_GENI SPI_QCOM_GENI PHY_QCOM_QMP_PCIE \

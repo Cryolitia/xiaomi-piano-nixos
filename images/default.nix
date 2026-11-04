@@ -139,7 +139,29 @@ in
           withVConsole = true;
         }
       );
-      systemd.extraBin.blkid = "${config.boot.initrd.systemd.package.util-linux}/bin/blkid";
+      # This image boots a direct ext4 partition. Keep the standard shell,
+      # checks and repair tools without creation/debug tools and their libraries.
+      services.lvm.enable = false;
+      services.bcache.enable = false;
+      systemd.dbus.enable = false;
+      systemd.initrdBin = lib.mkForce (
+        [
+          pkgs.coreutils
+          config.boot.initrd.systemd.package
+          config.boot.initrd.systemd.package.kmod
+        ]
+        ++ lib.optional config.boot.initrd.systemd.shell.enable pkgs.bashInteractive
+      );
+      systemd.extraBin = {
+        blkid = "${config.boot.initrd.systemd.package.util-linux}/bin/blkid";
+        e2fsck = "${pkgs.e2fsprogs}/bin/e2fsck";
+        "fsck.ext4" = "${pkgs.e2fsprogs}/bin/fsck.ext4";
+        resize2fs = "${pkgs.e2fsprogs}/bin/resize2fs";
+        tune2fs = "${pkgs.e2fsprogs}/bin/tune2fs";
+        dumpe2fs = "${pkgs.e2fsprogs}/bin/dumpe2fs";
+        e2label = "${pkgs.e2fsprogs}/bin/e2label";
+        badblocks = "${pkgs.e2fsprogs}/bin/badblocks";
+      };
       systemd.services.piano-check-root = {
         description = "Check the Piano root partition before filesystem access";
         requiredBy = [
