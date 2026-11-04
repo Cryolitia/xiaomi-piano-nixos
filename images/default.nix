@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  pianoPackages,
   utils,
   ...
 }:
@@ -48,6 +49,10 @@ let
       mkdir -p ./files/{boot,etc,nix/var/nix/profiles}
     '';
   };
+  espImage = pkgs.callPackage ./esp.nix {
+    inherit bootFiles;
+    linuxLoader = pianoPackages.linuxLoader;
+  };
   image =
     pkgs.runCommand "piano-nixos-gnome-image"
       {
@@ -63,6 +68,8 @@ let
       ''
         mkdir -p "$out/boot-files"
         cp -rL ${bootFiles}/. "$out/boot-files/"
+        cp --sparse=always ${espImage}/esp.img "$out/esp.img"
+        cp ${espImage}/esp.sparse.img "$out/esp.sparse.img"
         cp --sparse=always ${rootFilesystem} "$out/root.ext4.img"
         target_bytes=$((${toString cfg.rootSizeMiB} * 1024 * 1024))
         if [ "$(stat -c %s "$out/root.ext4.img")" -gt "$target_bytes" ]; then
@@ -82,8 +89,9 @@ let
         from pathlib import Path
         import sys
         out = Path(sys.argv[1])
+        esp = json.loads(Path('${espImage}/manifest.json').read_text())
         files = {}
-        for name in ('root.ext4.img', 'root.sparse.img', 'boot-files.tar'):
+        for name in ('root.ext4.img', 'root.sparse.img', 'esp.img', 'esp.sparse.img', 'boot-files.tar'):
             with (out / name).open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()
             files[name] = {'bytes': (out / name).stat().st_size, 'sha256': digest}
@@ -93,12 +101,16 @@ let
             'rootPartition': 'sunuefi_root',
             'rootLabel': 'PIANOROOT',
             'expandedRootBytes': int(sys.argv[2]),
+            'espPartition': esp['espPartition'],
+            'espLabel': esp['espLabel'],
+            'expandedEspBytes': esp['expandedEspBytes'],
+            'espSectorBytes': esp['sectorBytes'],
             'bootFilesDirectory': '/EFI/Piano/stable',
             'files': files,
         }, indent=2) + '\n')
         PY
         cd "$out"
-        sha256sum root.ext4.img root.sparse.img boot-files.tar manifest.json > SHA256SUMS
+        sha256sum root.ext4.img root.sparse.img esp.img esp.sparse.img boot-files.tar manifest.json > SHA256SUMS
       '';
 in
 {
@@ -230,6 +242,7 @@ in
     };
     system.build = {
       pianoBootFiles = bootFiles;
+      pianoEspImage = espImage;
       pianoRootfs = rootFilesystem;
       pianoImage = image;
     };

@@ -6,9 +6,9 @@
 
 `flake.lock` 固定全部提交及 NAR 哈希：
 
-- nixpkgs 提供 NixOS、GNOME 和常规用户空间。
+- nixpkgs 提供 NixOS、GNOME、systemd-boot 和常规用户空间。
 - Linux 基线与 SunUEFI 的有序补丁共同组成 Piano 内核；补丁还按原 `series.json` 的 SHA256 校验。
-- SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM 及固件覆盖清单。
+- SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM、固件覆盖清单，以及 Linux 启动应用和 PumpLib 源码。
 - debian-piano 提供板级初始化和音频拓扑构建来源；piano-firmware 提供设备固件。
 - piano-mesa 提供 A830v1 设备 ID 补丁；AudioReach 提供音频拓扑源码。
 
@@ -17,6 +17,8 @@
 ## 启动与硬件边界
 
 Linux 设备树的内存表由本项目按已验证容量选择；已有 SunUEFI 负责面板选择和 Gunyah 资源交接，不会替换内存表。Linux 载荷采用它支持的 Android boot header v2 容器；这个 `boot.img` 装的是 Linux 内核、initrd 和设备树，不是要刷入 Android BOOT 分区的引导镜像。
+
+ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。启动链为 SunUEFI → systemd-boot → `EFI/Piano/LinuxBoot.efi` → 驻留核心加载 `EFI/Piano/stable/boot.img`。systemd-boot 来自 nixpkgs；Linux 启动应用复用固定 SunUEFI 源码及 PumpLib，以 Clang/LLD 独立构建，不编译 UEFI 固件或 Android 模块。`boot-files` 保持为仅更新 Linux 载荷的目录，整套镜像和独立 ESP 输出共用相同的打包实现。
 
 构建会拒绝超过现有交接窗口的载荷：initrd 16 MiB、总容器 64 MiB、设备树约 2 MiB。验证配置使用 nixos-unstable 的 systemd initrd 和 XZ 压缩，不引入旧 Debian initramfs 对 `/usr/lib` 的要求。
 
@@ -29,6 +31,7 @@ nix flake check --all-systems --no-build
 nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
 nix eval .#nixosConfigurations.piano-24gb-gnome.config.system.build.pianoImage.drvPath
 nix build .#kernel
+nix build .#esp-image
 nix build .#gnome-image
 ```
 
