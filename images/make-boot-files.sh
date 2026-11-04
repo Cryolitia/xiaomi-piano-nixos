@@ -62,8 +62,8 @@ require(len(dtb) >= 40 and struct.unpack_from('>I', dtb)[0] == 0xd00dfeed
         and struct.unpack_from('>I', dtb, 4)[0] == len(dtb), 'Invalid flattened device tree.')
 require(len(dtb) <= 0x200000 - 0x10000,
         'Device tree exceeds the existing SunUEFI handoff window.')
-require(len(boot) <= 64 * 1024**2,
-        f'Linux boot image is {len(boot)} bytes; existing SunUEFI accepts at most 64 MiB.')
+require(len(boot) <= 128 * 1024**2,
+        f'Linux boot image is {len(boot)} bytes; SunUEFI with 128 MiB payload support is required; boot image exceeds 128 MiB.')
 require(boot[:8] == b'ANDROID!' and struct.unpack_from('<I', boot, 40)[0] == 2
         and struct.unpack_from('<I', boot, 36)[0] == 4096, 'Expected Android boot header v2 with 4 KiB pages.')
 require(struct.unpack_from('<I', boot, 8)[0] == len(image)

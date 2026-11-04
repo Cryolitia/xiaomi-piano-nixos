@@ -2,7 +2,7 @@
 
 验证镜像用于已经安装 SunUEFI、已有 `sunuefi_esp` 和 `sunuefi_root` 的 piano。启动镜像（ESP）包含 systemd-boot、Linux 启动应用、内核、initrd 和设备树；系统镜像（root）包含 NixOS。首次安装需要写入同一次构建的两份镜像。
 
-设备树按 `hardware.xiaomi.piano.memoryGiB` 选择已有依据的内存布局。16 GB 使用原厂基准，24 GB 使用当前实机已核对的改装布局；SunUEFI 只修正运行时面板和 Gunyah 参数，不会替换内存表。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。
+设备树按 `hardware.xiaomi.piano.memoryGiB` 选择已有依据的内存布局。16 GB 使用原厂基准，24 GB 使用当前实机已核对的改装布局；SunUEFI 只修正运行时面板和 Gunyah 参数，不会替换内存表。启动前需先安装支持 128 MiB Linux 载荷的 SunUEFI 固件；旧固件的 64 MiB 上限无法启动本镜像，仅更新 ESP 不够。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。
 
 ## 构建与校验
 
