@@ -58,5 +58,5 @@
   };
   programs.dconf.enable = true;
   services.gnome.core-apps.enable = true;
-  system.stateVersion = "26.11";
+  system.stateVersion = config.system.nixos.release;
 }
