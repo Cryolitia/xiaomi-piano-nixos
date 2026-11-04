@@ -26,6 +26,18 @@ ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目
 
 initrd 用单个服务逐一加载 SMMU、pinctrl、CPUCP mailbox、UFS PHY 和 UFS 驱动，避免 systemd 的黑名单检查与并发模块加载改变次序。stage1 和 stage2 从各自 systemd 的 `80-drivers.rules` 派生规则，只排除 SoC 总线的默认 modalias 加载，保留其他 udev 操作。显示、触摸、无线和 ADSP 按现有板级顺序初始化，普通 modalias 自动加载不能抢先启动这些 DMA 主设备。BSP 适配保留实时 sysfs DMA、时钟及资源检查，不把某次采集的机器状态作为通用硬件事实。当前内核序列只有 MiPPS 用户态传输接口，因此验证配置采用普通 PD 降压充电，不自动启用未经接入的快充认证或直充。
 
+## 显示、传感器与无线身份
+
+设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)
+
+传感器使用 FastRPC、libssc 和标准 SensorProxy。导入程序读取 GPT 活动槽位，通过 liblp 校验 super 元数据，再建立只读 ODM/vendor 映射、只读挂载 persist 并复制同机配置与校准数据。服务按 ADSP、配置导入、sensors PD、SensorProxy 的顺序启动。`hardware.sensor.iio.enable = false` 关闭整条 SSC 服务链；板载 SSC 不使用内核未提供的 `hid-sensor-hub`，只对该 initrd 模块作逐项排除，其余缺失模块仍会阻止构建。
+
+GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程序。自动旋转需要未锁定方向、有效加速度计和内置屏幕，并遵循 GNOME 的触摸模式策略：没有 tablet-mode switch 时，枚举到鼠标或触控板会退出触摸模式。普通键盘不触发这一限制。
+
+指纹模块注册 QTEE/UIO 控制接口，提供 `piano-fingerprint-ctl` 的现有初始化和事件诊断命令。签名 TA 与模型按清单校验，供客户端读取的副本保留未压缩形式，不改变其他内核固件的压缩策略。GNOME 指纹录入和解锁尚未接入：Piano 的 `gfpia` 需要真实 HAT 验签及 QTEE 协议支持，现有面向旧 QSEECOM 的 Goodix libfprint 后端不能直接使用。后续还需 Linux 独立的 Gatekeeper/HAT 签发、FTS 文件服务隔离和完整录入、匹配、保存、取消流程；给 TA 传入 Linux 目录本身不能证明存储已隔离。初始化也有持久化请求，因此原生客户端命令不能当作严格只读采集。[参考后端及协议研究](https://github.com/wrobelda/goodix-fp-spi-linux)
+
+板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙初始化复用现有 MGMT 程序：优先读取只读 persist 的原厂公共地址，缺失时才从 SoC 身份派生稳定地址，不写原厂分区。
+
 ## 检查
 
 运行本机的脚本格式、单行复合语句检查和模块接口检查：

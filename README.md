@@ -31,7 +31,7 @@ nixosConfigurations.tablet = nixpkgs.lib.nixosSystem {
 
 ```nix
 nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem (lib.getName pkg) [ "piano-firmware" ];
+  builtins.elem (lib.getName pkg) [ "piano-firmware" "piano-fingerprint" ];
 ```
 
 当前改装机将 `hardware.xiaomi.piano.memoryGiB` 设为 `24`。目前提供 16 GB 原厂基准和当前实机已核对的 24 GB 布局；8 GB、12 GB 及其他未取得设备树依据的容量会被拒绝，避免套用错误的内存范围。此选项不修改分区大小。
@@ -67,7 +67,7 @@ nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
 
 ```text
 flake.nix / flake.lock       导出接口和固定来源
-modules/piano/              通用设备模块、启动顺序、音频
+modules/piano/              设备模块、启动顺序、音频与传感器
 packages/                   内核、固件、设备树、BSP、Mesa 适配
 configurations/gnome.nix     GNOME 验证环境
 images/                     root、ESP 镜像和 Linux 启动文件打包
