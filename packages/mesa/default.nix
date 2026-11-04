@@ -1,15 +1,17 @@
 {
   mesa,
   fetchFromGitHub,
-  mesaPatchesSrc ? fetchFromGitHub {
+}:
+
+let
+  mesaPatchesSrc = fetchFromGitHub {
     name = "source";
     owner = "blu-sharky";
     repo = "piano-mesa";
     rev = "a89c1e46eef3e161520b084479928aaa5a8e8732";
     hash = "sha256-vYTaJ3lCul7MfYn/QHvYEVzkm6npRbqNnd2xc0/S/sw=";
-  },
-}:
-
+  };
+in
 mesa.overrideAttrs (old: {
   postPatch = (old.postPatch or "") + ''
     # Newer Mesa may already know the A830v1 ID. Apply the narrow public
