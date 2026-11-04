@@ -71,6 +71,7 @@ let
         cp --sparse=always ${espImage}/esp.img "$out/esp.img"
         cp ${espImage}/esp.sparse.img "$out/esp.sparse.img"
         cp --sparse=always ${rootFilesystem} "$out/root.ext4.img"
+        chmod u+w "$out/root.ext4.img"
         target_bytes=$((${toString cfg.rootSizeMiB} * 1024 * 1024))
         if [ "$(stat -c %s "$out/root.ext4.img")" -gt "$target_bytes" ]; then
           echo 'The NixOS closure exceeds piano.image.rootSizeMiB; increase the image size.' >&2
