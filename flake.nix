@@ -1,45 +1,11 @@
 {
   description = "NixOS hardware support and GNOME validation images for Xiaomi Pad 8 Pro (piano)";
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    sunuefi-source = {
-      url = "github:Cryolitia-Forks/Project-SunUEFI/874ef77d11c9616edda656d9fcd135364fb37d32";
-      flake = false;
-    };
-    linux-source = {
-      url = "github:torvalds/linux/c03c1a14507dfaf8b856c2608f9ac216021fc222";
-      flake = false;
-    };
-    debian-piano = {
-      url = "github:blu-sharky/debian-piano/a75f8c5d5fa099d65c171ac839c2e3bb6c63ec45";
-      flake = false;
-    };
-    piano-firmware = {
-      url = "github:blu-sharky/piano-firmware/05fc37c09ca8146eecfc4920f8485479db140ae5";
-      flake = false;
-    };
-    mesa-patches = {
-      url = "github:blu-sharky/piano-mesa/a89c1e46eef3e161520b084479928aaa5a8e8732";
-      flake = false;
-    };
-    audioreach-topology = {
-      url = "github:linux-msm/audioreach-topology/993a17dcb672357998a463a73f120064d6c74f4f";
-      flake = false;
-    };
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs =
-    inputs@{ self, nixpkgs, ... }:
+    { self, nixpkgs }:
     let
-      sources = {
-        sunuefiSrc = inputs.sunuefi-source;
-        linuxSrc = inputs.linux-source;
-        debianPianoSrc = inputs.debian-piano;
-        firmwareSrc = inputs.piano-firmware;
-        mesaPatchesSrc = inputs.mesa-patches;
-        audioReachSrc = inputs.audioreach-topology;
-      };
       lib = nixpkgs.lib;
       mkValidation =
         extraModules:
@@ -70,7 +36,7 @@
     in
     {
       nixosModules = {
-        piano = import ./modules/piano { inherit sources; };
+        piano = import ./modules/piano;
         default = self.nixosModules.piano;
       };
       nixosConfigurations = configurations;
@@ -81,7 +47,7 @@
             system = "aarch64-linux";
             config.allowUnfree = true;
           };
-          piano = import ./packages ({ inherit pkgs; } // sources);
+          piano = import ./packages { inherit pkgs; };
         in
         {
           kernel = piano.kernel;
@@ -102,7 +68,7 @@
           cfg = hardwareOnly.config;
         in
         {
-          linux-loader = pkgs.callPackage ./packages/linux-loader { inherit (sources) sunuefiSrc; };
+          linux-loader = pkgs.callPackage ./packages/linux-loader { };
           module-interface =
             assert !(cfg.fileSystems ? "/");
             assert !cfg.services.desktopManager.gnome.enable;

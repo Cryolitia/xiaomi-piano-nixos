@@ -3,8 +3,10 @@ args@{
   buildLinux,
   applyPatches,
   buildPackages,
-  sunuefiSrc,
-  linuxSrc,
+  callPackage,
+  fetchFromGitHub,
+  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  linuxSrc ? null,
   structuredExtraConfig ? { },
   ...
 }:
@@ -21,9 +23,20 @@ let
     in
     assert builtins.hashFile "sha256" path == entry.sha256;
     path;
+  linuxSource =
+    if linuxSrc != null then
+      linuxSrc
+    else
+      fetchFromGitHub {
+        name = "source";
+        owner = "torvalds";
+        repo = "linux";
+        rev = series.base_commit;
+        hash = "sha256-ca8CMAWKe1yzkQIn8sasUQxMLqdtfvC+wBFtX3819Zk=";
+      };
   source = applyPatches {
     name = "linux-piano-source";
-    src = linuxSrc;
+    src = linuxSource;
     patches = map checkedPatch series.patches;
     postPatch = ''
       ${buildPackages.python3.interpreter} ${./config.py} . ${sunuefiSrc}
@@ -34,6 +47,8 @@ let
     "buildLinux"
     "applyPatches"
     "buildPackages"
+    "callPackage"
+    "fetchFromGitHub"
     "sunuefiSrc"
     "linuxSrc"
     "structuredExtraConfig"

@@ -15,9 +15,23 @@
   m4,
   alsa-utils,
   glib,
-  sunuefiSrc,
-  debianPianoSrc,
-  audioReachSrc,
+  callPackage,
+  fetchFromGitHub,
+  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  debianPianoSrc ? fetchFromGitHub {
+    name = "source";
+    owner = "blu-sharky";
+    repo = "debian-piano";
+    rev = "a75f8c5d5fa099d65c171ac839c2e3bb6c63ec45";
+    hash = "sha256-ji67l4DmgMLKlggkVtBbGWvVS/Aw5JeyQcuKuHAls4A=";
+  },
+  audioReachSrc ? fetchFromGitHub {
+    name = "source";
+    owner = "linux-msm";
+    repo = "audioreach-topology";
+    rev = "993a17dcb672357998a463a73f120064d6c74f4f";
+    hash = "sha256-L2qem2uUvV/AgQRZCl/LOmAdaWyc13pDTlNjEXDtgVc=";
+  },
 }:
 
 let

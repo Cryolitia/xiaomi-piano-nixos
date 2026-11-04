@@ -3,7 +3,8 @@
   stdenvNoCC,
   llvmPackages,
   edk2,
-  sunuefiSrc,
+  callPackage,
+  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
 }:
 
 stdenvNoCC.mkDerivation {

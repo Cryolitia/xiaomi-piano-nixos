@@ -1,4 +1,14 @@
-{ mesa, mesaPatchesSrc }:
+{
+  mesa,
+  fetchFromGitHub,
+  mesaPatchesSrc ? fetchFromGitHub {
+    name = "source";
+    owner = "blu-sharky";
+    repo = "piano-mesa";
+    rev = "a89c1e46eef3e161520b084479928aaa5a8e8732";
+    hash = "sha256-vYTaJ3lCul7MfYn/QHvYEVzkm6npRbqNnd2xc0/S/sw=";
+  },
+}:
 
 mesa.overrideAttrs (old: {
   postPatch = (old.postPatch or "") + ''

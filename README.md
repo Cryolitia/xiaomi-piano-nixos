@@ -2,7 +2,7 @@
 
 为小米平板 8 Pro（`piano`）提供可导入的 NixOS 硬件模块和 GNOME 验证镜像。通用模块不指定桌面、用户、根分区或引导器，内存容量通过一个选项指定。
 
-项目复用已锁定的 Piano Linux 驱动、固件和板级初始化代码，保留显示、触摸、无线及音频的启动顺序和 DMA 检查。全部来源的提交及内容哈希记录在 `flake.lock`。不构建 UEFI 固件或 Android 模块。
+项目复用已锁定的 Piano Linux 驱动、固件和板级初始化代码，保留显示、触摸、无线及音频的启动顺序和 DMA 检查。nixpkgs 由 `flake.lock` 固定；其他源码由使用它的软件包以提交和 SHA256 固定，多个包共用的 SunUEFI 来源放在 `packages/sunuefi-source.nix`。不构建 UEFI 固件或 Android 模块。
 
 ## 导入设备模块
 

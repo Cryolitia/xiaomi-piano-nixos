@@ -4,7 +4,7 @@
 
 ## 来源
 
-`flake.lock` 固定全部提交及 NAR 哈希：
+`flake.lock` 只固定 nixpkgs。内核、固件、BSP 和 Mesa 等包在各自定义中获取固定提交与 SHA256 的源码；多个包共用的 SunUEFI 来源统一维护在 `packages/sunuefi-source.nix`：
 
 - nixpkgs 提供 NixOS、GNOME、systemd-boot 和常规用户空间。
 - Linux 基线与 SunUEFI 的有序补丁共同组成 Piano 内核；补丁还按原 `series.json` 的 SHA256 校验。
@@ -38,4 +38,4 @@ nix build .#gnome-image
 
 完整镜像构建需要原生或远端 `aarch64-linux` builder。x86_64 主机上的评估通过，不能替代 ARM64 编译或实机启动。首次上机应确认显示、触摸、键盘、无线、蓝牙、音频、充电及挂起恢复，并保存实际镜像 SHA256 和日志。
 
-升级来源时，先更新对应 flake 输入，再核对内核版本、补丁摘要、设备树处理、固件协议版本和 BSP 源码转换。所有配置都从同一包集取得内核和模块，不能混用旧 ESP 的内核与新 root 中的模块。
+升级 nixpkgs 时更新 `flake.lock`；升级其他来源时修改对应软件包的 fetch 定义，SunUEFI 共用来源只改一处。随后核对内核版本、补丁摘要、设备树处理、固件协议版本和 BSP 源码转换。所有配置都从同一包集取得内核和模块，不能混用旧 ESP 的内核与新 root 中的模块。

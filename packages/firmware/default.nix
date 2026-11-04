@@ -2,8 +2,16 @@
   lib,
   stdenvNoCC,
   python3,
-  sunuefiSrc,
-  firmwareSrc,
+  callPackage,
+  fetchFromGitHub,
+  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  firmwareSrc ? fetchFromGitHub {
+    name = "source";
+    owner = "blu-sharky";
+    repo = "piano-firmware";
+    rev = "05fc37c09ca8146eecfc4920f8485479db140ae5";
+    hash = "sha256-BoKWcBkNaE0wDTYjLNpp35f7gv1YJHURcFptdIhLefo=";
+  },
 }:
 
 stdenvNoCC.mkDerivation {

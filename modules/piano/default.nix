@@ -1,4 +1,3 @@
-{ sources }:
 {
   config,
   lib,
@@ -8,7 +7,7 @@
 
 let
   cfg = config.hardware.xiaomi.piano;
-  packages = import ../../packages ({ inherit pkgs; } // sources);
+  packages = import ../../packages { inherit pkgs; };
   deviceTree = packages.deviceTree.override ({
     memoryLayout =
       if cfg.memoryGiB == 24 then ../../packages/device-tree/profiles/24gb-boe.json else null;
