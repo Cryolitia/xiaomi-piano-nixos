@@ -38,7 +38,12 @@ in
     "pd_ignore_unused"
     "iommu.passthrough=1"
   ];
-  boot.initrd.availableKernelModules = storageModules ++ [ "ext4" ];
+  # The board kernel does not build NixOS' generic PC/virtual-machine drivers.
+  boot.initrd.includeDefaultModules = lib.mkDefault false;
+  boot.initrd.availableKernelModules = storageModules ++ [
+    "sd_mod"
+    "ext4"
+  ];
   # systemd-modules-load honors blacklists and loads in parallel. These seeds
   # must use normal modprobe, in the board's storage initialization order.
   boot.initrd.systemd.services.piano-storage = {
