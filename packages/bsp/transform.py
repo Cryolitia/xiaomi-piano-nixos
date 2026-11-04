@@ -83,13 +83,6 @@ def main():
     text = (sun / "linux/bsp/common/etc/modprobe.d/piano.conf").read_text()
     text = text.replace("/bin/false", "false")
     (conf / "piano.conf").write_text(text)
-    rules = out / "lib/udev/rules.d"
-    rules.mkdir(parents=True, exist_ok=True)
-    # Leave hardware aliases in sysfs intact for explicit modprobe. Clear
-    # only event autoloading for inherited SoC buses, before 80-drivers.rules.
-    (rules / "00-piano-module-order.rules").write_text(
-        'ACTION=="add", ENV{MODALIAS}=="of:*|platform:*|amba:*|spmi:*|auxiliary:*|slim:*|rpmsg:*|qcom-*", ENV{MODALIAS}=""\n'
-    )
 
     # The same patched reader and calibrated pen core are compiled below;
     # no opaque host executable or foreign prebuilt tool is installed.

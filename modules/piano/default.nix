@@ -56,6 +56,5 @@ in
       package = lib.mkOverride 990 packages.mesa;
     };
 
-    services.udev.packages = [ packages.bsp ];
   };
 }

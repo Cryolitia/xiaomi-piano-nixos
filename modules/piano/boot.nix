@@ -1,10 +1,30 @@
 {
+  config,
   lib,
   pkgs,
   pianoPackages,
   ...
 }:
 
+let
+  storageModules = [
+    "arm_smmu"
+    "pinctrl_sm8750"
+    "qcom_cpucp_mbox"
+    "phy_qcom_qmp_ufs"
+    "ufs_qcom"
+  ];
+  moduleOrderRules =
+    systemdPackage:
+    pkgs.runCommand "piano-module-order-rules" { } ''
+      rules="$out/lib/udev/rules.d/80-drivers.rules"
+      install -Dm644 ${systemdPackage}/lib/udev/rules.d/80-drivers.rules "$rules"
+      kmod_rule='ENV{MODALIAS}=="?*", RUN{builtin}+="kmod load"'
+      test "$(grep -Fc "$kmod_rule" "$rules")" -eq 1
+      substituteInPlace "$rules" --replace-fail "$kmod_rule" \
+        'ENV{MODALIAS}=="?*", ENV{MODALIAS}!="of:*|platform:*|amba:*|spmi:*|auxiliary:*|slim:*|rpmsg:*|qcom-*", RUN{builtin}+="kmod load"'
+    '';
+in
 {
   # Root devices, filesystems, desktop and bootloader remain caller policy.
   boot.kernelPackages = lib.mkDefault pianoPackages.kernelPackages;
@@ -18,22 +38,47 @@
     "pd_ignore_unused"
     "iommu.passthrough=1"
   ];
-  boot.initrd.availableKernelModules = [
-    "arm_smmu"
-    "pinctrl_sm8750"
-    "qcom_cpucp_mbox"
-    "phy_qcom_qmp_ufs"
-    "ufs_qcom"
-    "ext4"
+  boot.initrd.availableKernelModules = storageModules ++ [ "ext4" ];
+  # systemd-modules-load honors blacklists and loads in parallel. These seeds
+  # must use normal modprobe, in the board's storage initialization order.
+  boot.initrd.systemd.services.piano-storage = {
+    description = "Load Piano storage drivers in order";
+    requiredBy = [
+      "systemd-udev-trigger.service"
+      "sysroot.mount"
+    ];
+    before = [
+      "systemd-modules-load.service"
+      "systemd-udev-trigger.service"
+      "sysroot.mount"
+    ];
+    after = [
+      "systemd-udevd-control.socket"
+      "systemd-udevd-kernel.socket"
+    ];
+    requires = [
+      "systemd-udevd-control.socket"
+      "systemd-udevd-kernel.socket"
+    ];
+    unitConfig.DefaultDependencies = false;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      TimeoutStartSec = 60;
+    };
+    script = ''
+      set -eu
+      for module in ${lib.concatStringsSep " " storageModules}; do
+        /bin/modprobe "$module"
+      done
+    '';
+  };
+  # NixOS merges rule files by basename; put this copy after the standard
+  # package. Only default SoC autoloading is skipped, not other udev actions.
+  boot.initrd.services.udev.packages = lib.mkAfter [
+    (moduleOrderRules config.boot.initrd.systemd.package)
   ];
-  boot.initrd.kernelModules = [
-    "arm_smmu"
-    "pinctrl_sm8750"
-    "qcom_cpucp_mbox"
-    "phy_qcom_qmp_ufs"
-    "ufs_qcom"
-  ];
-  boot.initrd.services.udev.packages = [ pianoPackages.bsp ];
+  services.udev.packages = lib.mkAfter [ (moduleOrderRules config.systemd.package) ];
   boot.kernelModules = [
     "qcom_pon"
     "qcom_cpucp_mbox"
