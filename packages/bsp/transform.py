@@ -23,7 +23,10 @@ START_SCRIPTS = (
 HARDWARE_GUARD = "/usr/lib/piano/piano-ram-hardware-prepare"
 REQUIRED_PATHS = {
     "touch-start": {HARDWARE_GUARD: 1},
-    "radio-start": {HARDWARE_GUARD: 3, "/usr/bin/python3": 1},
+    "radio-start": {
+        HARDWARE_GUARD: 3,
+        "/usr/bin/python3 /usr/lib/piano/bluetooth-address.py": 1,
+    },
     "adsp-start": {HARDWARE_GUARD: 1},
     "audio-start": {HARDWARE_GUARD: 1},
     "keyboard-start": {HARDWARE_GUARD: 1},
@@ -133,6 +136,12 @@ class ScriptInstaller:
             "#!/bin/sh": "#!" + args.shell,
         }
         self.replacements = (
+            # Execute the installed helper so wrapProgram's shell wrapper runs.
+            # Passing that wrapper to Python would parse shell code as Python.
+            (
+                "/usr/bin/python3 /usr/lib/piano/bluetooth-address.py",
+                str(self.libexec / "bluetooth-address.py"),
+            ),
             ("/usr/bin/python3", args.python),
             ("/usr/sbin/blkid", args.blkid),
             ("/usr/sbin/modprobe", args.modprobe),
