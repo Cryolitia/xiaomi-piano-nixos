@@ -132,7 +132,8 @@ in
       }
     ];
     boot.initrd = {
-      systemd.package = mkDefault pkgs.systemdMinimal;
+      # NixOS includes systemd-bsod in the initrd; its build requires QR encoding.
+      systemd.package = mkDefault (pkgs.systemdMinimal.override { withQrencode = true; });
       systemd.extraBin.blkid = "${config.boot.initrd.systemd.package.util-linux}/bin/blkid";
       systemd.services.piano-check-root = {
         description = "Check the Piano root partition before filesystem access";
