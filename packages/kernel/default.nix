@@ -100,6 +100,12 @@ let
           SQUASHFS = lib.mkDefault module;
           RUST = lib.mkForce no;
 
+          # NixOS' default firewall uses packet-type and reverse-path matches
+          # for both IPv4 and IPv6, including with the nftables backend.
+          NETFILTER_XT_MATCH_PKTTYPE = lib.mkDefault module;
+          IP_NF_MATCH_RPFILTER = lib.mkDefault module;
+          IP6_NF_MATCH_RPFILTER = lib.mkDefault module;
+
           # These consumers are started in the board's verified order. Nixpkgs'
           # generic config must not turn them into early built-in DMA masters.
           ARM_SMMU = lib.mkForce module;
@@ -144,6 +150,14 @@ kernel.overrideAttrs (old: {
 
     grep -qx 'CONFIG_CMDLINE=""' "$piano_config"
     ! grep -qx 'CONFIG_CMDLINE_FORCE=y' "$piano_config"
+
+    # Missing matches otherwise leave firewall-start with partially applied rules.
+    for setting in NETFILTER_XT_MATCH_PKTTYPE IP_NF_MATCH_RPFILTER IP6_NF_MATCH_RPFILTER; do
+      grep -Eq "^CONFIG_$setting=[ym]$" "$piano_config" || {
+        echo "Missing required NixOS firewall kernel setting: $setting" >&2
+        exit 1
+      }
+    done
 
     # An early built-in DMA consumer could start before its SMMU or clocks.
     # These drivers must stay modular for the board's ordered bring-up units.
