@@ -12,21 +12,17 @@ let
   rootDeviceName = utils.escapeSystemdPath rootDevice;
   rootDeviceUnit = "${rootDeviceName}.device";
   rootFsckUnit = "systemd-fsck@${rootDeviceName}.service";
-  bootTools = pkgs.writeShellApplication {
-    name = "piano-make-boot-files";
-    runtimeInputs = with pkgs; [
-      python3
-    ];
-    text = builtins.readFile ./make-boot-files.sh;
-  };
+  # Build the initial boot entry from the same system that populates root.
   bootFiles =
     pkgs.runCommand "piano-linux-boot-files"
       {
-        nativeBuildInputs = [ bootTools ];
+        nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        piano-make-boot-files ${config.system.build.toplevel} "$out"
+        python3 ${./make-boot-files.py} ${config.system.build.toplevel} "$out"
       '';
+
+  # make-ext4-fs supplies the closure and its registration database.
   rootFilesystem = pkgs.callPackage (pkgs.path + "/nixos/lib/make-ext4-fs.nix") {
     storePaths = [ config.system.build.toplevel ];
     compressImage = false;
@@ -36,9 +32,11 @@ let
       mkdir -p ./files/{boot,etc,nix/var/nix/profiles}
     '';
   };
+
   espImage = pkgs.callPackage ./esp.nix {
     inherit bootFiles;
   };
+
   image =
     pkgs.runCommand "piano-nixos-gnome-image"
       {
@@ -52,52 +50,13 @@ let
         ];
       }
       ''
-        mkdir -p "$out/boot-files"
-        cp -rL ${bootFiles}/. "$out/boot-files/"
-        cp --sparse=always ${espImage}/esp.img "$out/esp.img"
-        cp ${espImage}/esp.sparse.img "$out/esp.sparse.img"
-        cp --sparse=always ${rootFilesystem} "$out/root.ext4.img"
-        chmod u+w "$out/root.ext4.img"
-        target_bytes=$((${toString cfg.rootSizeMiB} * 1024 * 1024))
-        if [ "$(stat -c %s "$out/root.ext4.img")" -gt "$target_bytes" ]; then
-          echo 'The NixOS closure exceeds piano.image.rootSizeMiB; increase the image size.' >&2
-          exit 1
-        fi
-        truncate -s "$target_bytes" "$out/root.ext4.img"
-        resize2fs -f "$out/root.ext4.img"
-        e2fsck -f -n "$out/root.ext4.img"
-        test "$(blkid -p -s LABEL -o value "$out/root.ext4.img")" = PIANOROOT
-        img2simg "$out/root.ext4.img" "$out/root.sparse.img" 4096
-        tar --sort=name --mtime=@1 --owner=0 --group=0 --numeric-owner \
-          -C "$out/boot-files" -cf "$out/boot-files.tar" EFI loader
-        python3 - "$out" "$target_bytes" <<'PY'
-        import hashlib
-        import json
-        from pathlib import Path
-        import sys
-        out = Path(sys.argv[1])
-        esp = json.loads(Path('${espImage}/manifest.json').read_text())
-        files = {}
-        for name in ('root.ext4.img', 'root.sparse.img', 'esp.img', 'esp.sparse.img', 'boot-files.tar'):
-            with (out / name).open('rb') as stream:
-                digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-            files[name] = {'bytes': (out / name).stat().st_size, 'sha256': digest}
-        (out / 'manifest.json').write_text(json.dumps({
-            'schemaVersion': 1,
-            'system': '${config.system.build.toplevel}',
-            'rootPartition': 'sunuefi_root',
-            'rootLabel': 'PIANOROOT',
-            'expandedRootBytes': int(sys.argv[2]),
-            'espPartition': esp['espPartition'],
-            'espLabel': esp['espLabel'],
-            'expandedEspBytes': esp['expandedEspBytes'],
-            'espSectorBytes': esp['sectorBytes'],
-            'bootFilesDirectory': '/EFI/nixos',
-            'files': files,
-        }, indent=2) + '\n')
-        PY
-        cd "$out"
-        sha256sum root.ext4.img root.sparse.img esp.img esp.sparse.img boot-files.tar manifest.json > SHA256SUMS
+        python3 ${./make-image.py} \
+          --boot-files ${bootFiles} \
+          --esp-image ${espImage} \
+          --root-filesystem ${rootFilesystem} \
+          --root-size-mib ${toString cfg.rootSizeMiB} \
+          --system ${config.system.build.toplevel} \
+          --output "$out"
       '';
 in
 {
@@ -107,6 +66,7 @@ in
       default = 16384;
       description = "Size of the standalone ext4 validation image, in MiB.";
     };
+
     system.build.installBootLoader = mkOption {
       # Keep the standard NixOS updater; only check the image's dedicated
       # partition identities before it can write the ESP.
@@ -120,7 +80,14 @@ in
               pkgs.util-linuxMinimal
             ]
           }
-          fail() { echo "Piano boot update refused: $*" >&2; exit 1; }
+
+          fail() {
+            echo "Piano boot update refused: $*" >&2
+            exit 1
+          }
+
+          # Resolve the actual mounts before the standard installer can write.
+          # Filesystem labels alone cannot establish partition ownership.
           esp=${lib.escapeShellArg config.boot.loader.efi.efiSysMountPoint}
           device=$(findmnt --noheadings --raw --output SOURCE --mountpoint "$esp") ||
             fail 'Mount the SunUEFI ESP before updating.'
@@ -131,6 +98,7 @@ in
             fail 'The ESP filesystem label is not SUNUEFI_ESP.'
           test "$(findmnt --noheadings --raw --output FSTYPE --mountpoint "$esp")" = vfat ||
             fail 'The ESP must use FAT32.'
+
           root_device=$(findmnt --noheadings --raw --output SOURCE --mountpoint /)
           test -b "$root_device" || fail 'The root is not a block-device filesystem.'
           test "$(blkid -p -s PART_ENTRY_NAME -o value "$root_device")" = sunuefi_root ||
@@ -139,9 +107,12 @@ in
             fail 'The root filesystem label is not PIANOROOT.'
           test "$(findmnt --noheadings --raw --output FSTYPE --mountpoint /)" = ext4 ||
             fail 'The root must use ext4.'
+
+          # Both filesystems must belong to the same physical storage device.
           test "$(lsblk --noheadings --raw --output PKNAME "$root_device")" = \
             "$(lsblk --noheadings --raw --output PKNAME "$device")" ||
             fail 'The ESP and root must belong to the same disk.'
+
           exec ${installer} "$@"
         '';
     };
@@ -158,6 +129,8 @@ in
         message = "The validation image cannot include initrd secrets in the public ESP boot payload.";
       }
     ];
+
+    # Check the dedicated root identity before fsck or automatic filesystem growth.
     boot.initrd = {
       # Keep the error-screen and console-setup services required by NixOS.
       systemd.package = mkDefault (
@@ -188,7 +161,13 @@ in
           RemainAfterExit = true;
         };
         script = ''
-          fail() { echo "Piano root refused: $*" >&2; exit 1; }
+          fail() {
+            echo "Piano root refused: $*" >&2
+            exit 1
+          }
+
+          # This gate runs in stage 1, where only the selected block device
+          # and blkid are needed; it does not mount or modify the partition.
           device=${lib.escapeShellArg rootDevice}
           test -b "$device" || fail 'The selected root is not a block device.'
           test "$(/bin/blkid -p -s TYPE -o value "$device")" = ext4 ||
@@ -199,6 +178,7 @@ in
             fail 'The selected root is not the sunuefi_root partition.'
         '';
       };
+
       compressor = mkDefault "xz";
       compressorArgs = mkDefault (
         if builtins.isString config.boot.initrd.compressor && config.boot.initrd.compressor == "xz" then
@@ -211,6 +191,7 @@ in
           null
       );
     };
+
     boot.kernelParams = [
       "rootfstype=ext4"
       "rootwait"
@@ -219,6 +200,8 @@ in
       "ext4"
       "vfat"
     ];
+
+    # Runtime updates use NixOS itself; the Python tools only build offline images.
     boot.loader.systemd-boot = {
       enable = true;
       installDeviceTree = true;
@@ -229,6 +212,7 @@ in
     boot.loader.efi.efiSysMountPoint = "/boot";
     boot.loader.generic-extlinux-compatible.enable = false;
     boot.loader.efi.canTouchEfiVariables = false;
+
     fileSystems = {
       "/" = {
         device = "/dev/disk/by-label/PIANOROOT";
@@ -245,6 +229,8 @@ in
         ];
       };
     };
+
+    # Import the image registration once before the Nix daemon starts.
     systemd.services.piano-register-store = {
       description = "Register the Nix store from the initial Piano image";
       wantedBy = [ "sysinit.target" ];
@@ -272,11 +258,15 @@ in
       ];
       script = ''
         nix-store --load-db < /nix-path-registration
+
         touch /etc/NIXOS
         nix-env -p /nix/var/nix/profiles/system --set /run/current-system
+
+        # Removing the marker makes subsequent boots leave the live database alone.
         rm -f /nix-path-registration
       '';
     };
+
     system.build.pianoImage = image;
   };
 }
