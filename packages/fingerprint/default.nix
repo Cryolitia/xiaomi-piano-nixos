@@ -43,6 +43,12 @@ stdenv.mkDerivation (
       test "$(grep -Fc '/usr/lib/firmware/' "$client")" -eq 2
       substituteInPlace "$client" --replace-fail \
         '/usr/lib/firmware/' "$out/share/piano-fingerprint/firmware/"
+
+      # SET_ACTIVE_GROUP alone does not prove isolation of the TA's FTS paths.
+      # The client has no filesystem listener or enrollment/authentication API.
+      substituteInPlace "$client" --replace-fail \
+        'list queries templates in an isolated Linux user profile.' \
+        'list queries TA templates; persistent storage isolation is not implemented.'
     '';
 
     buildPhase = ''
