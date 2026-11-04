@@ -57,9 +57,9 @@ let
       structuredExtraConfig = lib.mkMerge [
         structuredExtraConfig
         (with lib.kernel; {
-          LOCALVERSION = lib.mkForce (freeform "\"-piano-nixos\"");
+          LOCALVERSION = lib.mkForce (freeform "-piano-nixos");
           LOCALVERSION_AUTO = lib.mkForce no;
-          CMDLINE = lib.mkForce (freeform "\"\"");
+          CMDLINE = lib.mkForce (freeform "");
           CMDLINE_FORCE = lib.mkForce no;
           CMDLINE_EXTEND = lib.mkForce no;
           BLK_DEV_INITRD = lib.mkForce yes;
