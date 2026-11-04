@@ -25,8 +25,8 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
     python3 ${./build.py} ${sunuefiSrc} ${panel} \
-      ${lib.escapeShellArg (if boardDtb == null then "-" else toString boardDtb)} \
-      ${lib.escapeShellArg (if memoryLayout == null then "-" else toString memoryLayout)}
+      ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")} \
+      ${lib.escapeShellArg (if memoryLayout == null then "-" else "${memoryLayout}")}
     runHook postBuild
   '';
   installPhase = ''
