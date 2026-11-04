@@ -22,6 +22,9 @@
         piano-gnome = mkValidation [ ];
         piano-24gb-gnome = mkValidation [ { hardware.xiaomi.piano.memoryGiB = 24; } ];
       };
+
+      # Check the importable module without the image's disk, desktop or
+      # bootloader policy, separately from the complete GNOME configurations.
       hardwareOnly = lib.nixosSystem {
         system = "aarch64-linux";
         modules = [
@@ -29,6 +32,7 @@
           { hardware.xiaomi.piano.memoryGiB = 16; }
         ];
       };
+
       forSystems = lib.genAttrs [
         "aarch64-linux"
         "x86_64-linux"
@@ -67,6 +71,17 @@
           cfg = hardwareOnly.config;
         in
         {
+          scripts-format =
+            pkgs.runCommand "piano-scripts-format"
+              {
+                nativeBuildInputs = [ pkgs.ruff ];
+              }
+              ''
+                ruff format --check --no-cache --config ${self}/ruff.toml ${self}
+                ruff check --no-cache --config ${self}/ruff.toml ${self}
+                touch "$out"
+              '';
+
           module-interface =
             assert !(cfg.fileSystems ? "/");
             assert !cfg.services.desktopManager.gnome.enable;

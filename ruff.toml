@@ -1,0 +1,5 @@
+[format]
+quote-style = "preserve"
+
+[lint]
+select = ["E401", "E701", "E702"]

@@ -28,6 +28,14 @@ initrd 用单个服务逐一加载 SMMU、pinctrl、CPUCP mailbox、UFS PHY 和 
 
 ## 检查
 
+运行本机的脚本格式、单行复合语句检查和模块接口检查：
+
+```sh
+nix flake check
+```
+
+Python 规则统一放在 `ruff.toml`。`--no-build` 只评估检查项，不会执行 Ruff；跨架构评估和完整构建仍可分别运行：
+
 ```sh
 nix flake check --all-systems --no-build
 nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
