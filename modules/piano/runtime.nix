@@ -41,6 +41,16 @@ in
     CHARGE_CP=0
   '';
 
+  # The onboard firmware may report an empty MAC and the driver then chooses
+  # a random one. A per-profile stable address survives boots and takes effect
+  # before association; an explicit address in a saved profile still wins.
+  networking.networkmanager.settings = lib.mkIf config.networking.networkmanager.enable {
+    connection-piano-wlan = {
+      match-device = "driver:ath12k_wifi7_pci";
+      "wifi.cloned-mac-address" = "stable";
+    };
+  };
+
   systemd.services = {
     piano-display =
       (unit {
