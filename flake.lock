@@ -1,0 +1,135 @@
+{
+  "nodes": {
+    "audioreach-topology": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789713539,
+        "narHash": "sha256-L2qem2uUvV/AgQRZCl/LOmAdaWyc13pDTlNjEXDtgVc=",
+        "owner": "linux-msm",
+        "repo": "audioreach-topology",
+        "rev": "993a17dcb672357998a463a73f120064d6c74f4f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "linux-msm",
+        "repo": "audioreach-topology",
+        "rev": "993a17dcb672357998a463a73f120064d6c74f4f",
+        "type": "github"
+      }
+    },
+    "debian-piano": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791476877,
+        "narHash": "sha256-ji67l4DmgMLKlggkVtBbGWvVS/Aw5JeyQcuKuHAls4A=",
+        "owner": "blu-sharky",
+        "repo": "debian-piano",
+        "rev": "a75f8c5d5fa099d65c171ac839c2e3bb6c63ec45",
+        "type": "github"
+      },
+      "original": {
+        "owner": "blu-sharky",
+        "repo": "debian-piano",
+        "rev": "a75f8c5d5fa099d65c171ac839c2e3bb6c63ec45",
+        "type": "github"
+      }
+    },
+    "linux-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792365298,
+        "narHash": "sha256-ca8CMAWKe1yzkQIn8sasUQxMLqdtfvC+wBFtX3819Zk=",
+        "owner": "torvalds",
+        "repo": "linux",
+        "rev": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+        "type": "github"
+      },
+      "original": {
+        "owner": "torvalds",
+        "repo": "linux",
+        "rev": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+        "type": "github"
+      }
+    },
+    "mesa-patches": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790533631,
+        "narHash": "sha256-vYTaJ3lCul7MfYn/QHvYEVzkm6npRbqNnd2xc0/S/sw=",
+        "owner": "blu-sharky",
+        "repo": "piano-mesa",
+        "rev": "a89c1e46eef3e161520b084479928aaa5a8e8732",
+        "type": "github"
+      },
+      "original": {
+        "owner": "blu-sharky",
+        "repo": "piano-mesa",
+        "rev": "a89c1e46eef3e161520b084479928aaa5a8e8732",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1793540411,
+        "narHash": "sha256-fiPJ88izTVucjeo2EQ3jk4aWmLg03I1D4vxnX2QjEgE=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "0bb2eedc20e4739f29e8045034f2828ad7054f8f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "piano-firmware": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790853629,
+        "narHash": "sha256-BoKWcBkNaE0wDTYjLNpp35f7gv1YJHURcFptdIhLefo=",
+        "owner": "blu-sharky",
+        "repo": "piano-firmware",
+        "rev": "05fc37c09ca8146eecfc4920f8485479db140ae5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "blu-sharky",
+        "repo": "piano-firmware",
+        "rev": "05fc37c09ca8146eecfc4920f8485479db140ae5",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "audioreach-topology": "audioreach-topology",
+        "debian-piano": "debian-piano",
+        "linux-source": "linux-source",
+        "mesa-patches": "mesa-patches",
+        "nixpkgs": "nixpkgs",
+        "piano-firmware": "piano-firmware",
+        "sunuefi-source": "sunuefi-source"
+      }
+    },
+    "sunuefi-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793776627,
+        "narHash": "sha256-Za0CutJJxm1Oi10v0XS/BwxK4+xKXdmPPMjifFEi1gc=",
+        "owner": "Cryolitia-Forks",
+        "repo": "Project-SunUEFI",
+        "rev": "874ef77d11c9616edda656d9fcd135364fb37d32",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Cryolitia-Forks",
+        "repo": "Project-SunUEFI",
+        "rev": "874ef77d11c9616edda656d9fcd135364fb37d32",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
