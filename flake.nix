@@ -90,9 +90,6 @@
           device-tree = piano.deviceTree;
           gnome-image = configurations.piano-gnome.config.system.build.pianoImage;
           gnome-24gb-image = configurations.piano-24gb-gnome.config.system.build.pianoImage;
-          boot-files = configurations.piano-gnome.config.system.build.pianoBootFiles;
-          esp-image = configurations.piano-gnome.config.system.build.pianoEspImage;
-          esp-24gb-image = configurations.piano-24gb-gnome.config.system.build.pianoEspImage;
           default = self.packages.aarch64-linux.gnome-image;
         };
 

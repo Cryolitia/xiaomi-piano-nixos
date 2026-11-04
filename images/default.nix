@@ -247,11 +247,6 @@ in
         rm -f /nix-path-registration
       '';
     };
-    system.build = {
-      pianoBootFiles = bootFiles;
-      pianoEspImage = espImage;
-      pianoRootfs = rootFilesystem;
-      pianoImage = image;
-    };
+    system.build.pianoImage = image;
   };
 }

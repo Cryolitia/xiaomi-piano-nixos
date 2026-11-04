@@ -16,18 +16,18 @@ nix build .#gnome-image
 
 其他架构的电脑需要配置 ARM64 Nix builder，并使用完整输出名，例如 `nix build .#packages.aarch64-linux.gnome-24gb-image`。
 
+选择一个镜像入口运行一次 `nix build`，同一个 `result/` 中会同时得到下列文件；`manifest.json` 和 `SHA256SUMS` 统一记录这套配对的 root、ESP 镜像。
+
 | 文件 | 用途 |
 | --- | --- |
 | `esp.sparse.img` | 用原厂 Fastboot 写入 `sunuefi_esp` |
 | `esp.img` | 同一启动文件系统的原始 FAT32 镜像 |
 | `root.sparse.img` | 用原厂 Fastboot 写入 `sunuefi_root` |
 | `root.ext4.img` | 系统分区的原始 ext4 镜像 |
-| `boot-files.tar` / `boot-files/` | 更新已有 ESP 中的 Linux 载荷 |
+| `boot-files.tar` / `boot-files/` | 同套镜像的 Linux 载荷，用于更新已有 ESP |
 | `manifest.json` / `SHA256SUMS` | 构建身份、容量和文件摘要 |
 
 ESP 镜像为 512 MiB，使用 4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签。root 镜像默认 16 GiB。目标分区分别至少需要相同容量；容量不足时应先停止，不能将镜像截短。
-
-只构建启动镜像时，可运行 `nix build .#esp-image` 或 `nix build .#esp-24gb-image`，输出为两种 ESP 镜像及清单、摘要。它们必须与已经安装的 root 使用相同的 NixOS generation；从 Debian 首次切换时应使用上面的整套输出。
 
 ## 备份现有系统
 
@@ -75,4 +75,4 @@ fastboot -s SERIAL reboot
 
 验证配置安装了外部启动文件更新钩子。在 NixOS 内执行 `nixos-rebuild boot` 时，钩子核对 `/boot` 确实是现有 SunUEFI ESP，再生成并校验 Linux 启动文件，最后替换 `boot.img`。它不更新 UEFI 固件、systemd-boot 或 Android 启动分区。
 
-需要从其他 Linux 手工更新时，`boot-files` 提供 `EFI/Piano/stable/` 中的四个 Linux 载荷文件及启动条目 `loader/entries/debian.conf`。将这些文件更新到已挂载的 ESP，保留现有 `EFI/BOOT/BOOTAA64.EFI`、`EFI/Piano/LinuxBoot.efi` 和其他文件，最后替换 `boot.img`；更新后核对摘要并卸载 ESP。新的启动文件必须与已安装或即将写入的 root 匹配。
+需要从其他 Linux 手工更新时，从同一构建结果的 `result/boot-files/EFI/Piano/stable/` 取得四个 Linux 载荷文件，从 `result/boot-files/loader/entries/debian.conf` 取得启动条目。将这些文件更新到已挂载的 ESP，保留现有 `EFI/BOOT/BOOTAA64.EFI`、`EFI/Piano/LinuxBoot.efi` 和其他文件，最后替换 `boot.img`；更新后核对摘要并卸载 ESP。新的启动文件必须与已安装或即将写入的 root 匹配。

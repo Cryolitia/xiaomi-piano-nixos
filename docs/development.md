@@ -18,7 +18,9 @@
 
 Linux 设备树的内存表由本项目按已验证容量选择；已有 SunUEFI 负责面板选择和 Gunyah 资源交接，不会替换内存表。Linux 载荷采用它支持的 Android boot header v2 容器；这个 `boot.img` 装的是 Linux 内核、initrd 和设备树，不是要刷入 Android BOOT 分区的引导镜像。
 
-ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。启动链为 SunUEFI → systemd-boot → `EFI/Piano/LinuxBoot.efi` → 驻留核心加载 `EFI/Piano/stable/boot.img`。systemd-boot 来自 nixpkgs；Linux 启动应用复用固定 SunUEFI 源码及 PumpLib，以 Clang/LLD 独立构建，不编译 UEFI 固件或 Android 模块。`boot-files` 保持为仅更新 Linux 载荷的目录，整套镜像和独立 ESP 输出共用相同的打包实现。
+ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。启动链为 SunUEFI → systemd-boot → `EFI/Piano/LinuxBoot.efi` → 驻留核心加载 `EFI/Piano/stable/boot.img`。systemd-boot 来自 nixpkgs；Linux 启动应用复用固定 SunUEFI 源码及 PumpLib，以 Clang/LLD 独立构建，不编译 UEFI 固件或 Android 模块。
+
+验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 同时提供 root 和 ESP 的原始镜像、稀疏镜像，以及统一的清单和摘要。`result/boot-files/` 提供同次构建的 Linux 载荷，供已有 ESP 更新。
 
 构建会拒绝超过现有交接窗口的载荷：initrd 16 MiB、总容器 128 MiB、设备树约 2 MiB。总容器超过 64 MiB 时，需要支持 128 MiB 载荷的 SunUEFI 驻留核心，单独更新 ESP 内的启动应用不会改变固件上限。验证配置使用 nixos-unstable 的 systemd initrd 和 XZ 压缩，不引入旧 Debian initramfs 对 `/usr/lib` 的要求。
 
@@ -31,7 +33,6 @@ nix flake check --all-systems --no-build
 nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
 nix eval .#nixosConfigurations.piano-24gb-gnome.config.system.build.pianoImage.drvPath
 nix build .#kernel
-nix build .#esp-image
 nix build .#gnome-image
 ```
 

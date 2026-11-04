@@ -38,7 +38,7 @@ nixpkgs.config.allowUnfreePredicate = pkg:
 
 ## 构建 GNOME 验证镜像
 
-项目使用 `nixos-unstable`，精确提交由 `flake.lock` 固定。在 ARM64 Linux 构建机上运行：
+项目使用 `nixos-unstable`，精确提交由 `flake.lock` 固定。在 ARM64 Linux 构建机上，按内存容量选择一个构建命令：
 
 ```sh
 nix build .#gnome-image
@@ -61,9 +61,7 @@ nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
 
 验证系统使用 GNOME、中文界面、Chromium、NetworkManager 和 IBus 拼音，自动登录 `piano`，密码为 `piano123456`。这些设置只属于验证配置，不会随硬件模块导入自己的系统。
 
-输出包含 root 系统镜像、512 MiB 的 ESP 启动镜像，以及各自的 Android 稀疏格式，可通过原厂 Fastboot 写入已有 `sunuefi_root` 和 `sunuefi_esp` 分区。ESP 包含 systemd-boot、Linux 启动应用和匹配的 Linux 载荷，复用已经安装的 SunUEFI。刷写步骤与启动前提见 [安装](docs/install.md)。
-
-只构建 ESP 时使用 `.#esp-image`，24 GB 配置使用 `.#esp-24gb-image`；这两个输出各自包含 `esp.img`、`esp.sparse.img`、清单和摘要。`boot-files` 则提供供已有 ESP 更新的 Linux 载荷目录。
+一次构建会在同一个 `result/` 中同时生成 `root.ext4.img`、`root.sparse.img`、`esp.img` 和 `esp.sparse.img`，并提供统一的 `manifest.json` 和 `SHA256SUMS`。root 系统镜像与 512 MiB 的 ESP 启动镜像来自同一系统配置，可通过原厂 Fastboot 写入已有分区。ESP 包含 systemd-boot、Linux 启动应用和匹配的 Linux 载荷，复用已经安装的 SunUEFI。手工更新启动载荷时使用同一 `result/boot-files/` 目录。刷写步骤与启动前提见 [安装](docs/install.md)。
 
 ## 目录
 
@@ -72,7 +70,7 @@ flake.nix / flake.lock       导出接口和固定来源
 modules/piano/              通用设备模块、启动顺序、音频
 packages/                   内核、固件、设备树、BSP、Mesa 适配
 configurations/gnome.nix     GNOME 验证环境
-images/                     单分区镜像和 Linux 启动文件打包
+images/                     root、ESP 镜像和 Linux 启动文件打包
 ```
 
 来源、维护边界和验证方法见 [开发说明](docs/development.md)。
