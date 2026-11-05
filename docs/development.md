@@ -1,6 +1,6 @@
 # 维护与验证
 
-硬件配置、可替换的软件包和验证镜像分别维护。设备模块只设置硬件所需默认值；桌面、用户、语言和磁盘策略放在 `configurations/` 和 `images/`。内存容量统一由 `hardware.xiaomi.piano.memoryGiB` 控制；有依据的布局数据放在设备树包中，不复制一份完整硬件模块。
+硬件配置、可替换的软件包和验证镜像分别维护。设备模块只设置硬件所需默认值；桌面、用户、语言和磁盘策略放在 `configurations/` 和 `images/`。内存容量统一由 `hardware.xiaomi.piano.memoryGiB` 控制；板级设备树覆盖、内存布局和绑定修正统一放在 SunUEFI 的 `linux/dts/`、`config/memory-layouts/` 及共享构建工具中；本仓库仅选择容量并调用它们。
 
 ## 来源
 
@@ -24,11 +24,11 @@ ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目
 
 标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理。只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 
-initrd 用单个服务先加载 GPUCC，再加载 SMMU、pinctrl、CPUCP mailbox、UFS PHY 和 UFS 驱动。Adreno SMMU 依赖 GPUCC 的时钟和电源域，先注册供应者可避免探测超时；逐一调用 kmod 也避免 systemd 的黑名单检查与并发加载改变次序。stage1 和 stage2 从各自 systemd 的 `80-drivers.rules` 派生规则，只排除 SoC 总线的默认 modalias 加载，保留其他 udev 操作。显示、触摸、无线和 ADSP 按现有板级顺序初始化，普通 modalias 自动加载不能抢先启动这些 DMA 主设备。BSP 适配保留实时 sysfs DMA、时钟及资源检查，不把某次采集的机器状态作为通用硬件事实。当前内核序列只有 MiPPS 用户态传输接口，因此验证配置采用普通 PD 降压充电，不自动启用未经接入的快充认证或直充。
+initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplug 自动加载；stage2 使用同一套普通 modalias 机制。设备树表达时钟、电源域、GPIO 和 IOMMU 关系，驱动通过延迟探测等待资源。本项目不再修改 `80-drivers.rules`、设置板级模块黑名单或用专用服务加载存储、显示、键盘、声卡和无线模块。未适配设备在共享设备树中禁用；媒体节点由共享构建策略选择，保留 SunUEFI 其他发行版已有的媒体能力。
 
-显示、音频和键盘直接在 systemd 单元中调用 kmod，不再安装各自的启动脚本。显示先注册 DISPCC、背光和面板，再加载 MSM；只保留 DSI 实际启用的等待，供后续 ADSP 启动使用，不再向 `drivers_probe` 写入设备名。音频通过 `Requires` 依赖 ADSP，保留 DSP DMA 检查，声卡就绪由 `udevadm wait` 等待；ASoC 自行处理组件之间的延迟探测。键盘驱动自行完成上电、固件和 HID 注册，单元在 QUP 检查后加载驱动。CPUCP 和 SCMI cpufreq 已内建，CPU boost 由标准 tmpfiles 规则设置，无需额外服务或轮询。
+内核在 identity 映射附着前后检查实际 SMMU 路由与上下文；显式声明 `iommus` 或 `iommu-map` 的设备无法完成配置时直接失败，不降级到无 IOMMU 的 DMA。蓝牙电源序列尚未就绪时保留 `-EPROBE_DEFER`；没有 OF compatible 的 RPMsg 通道使用标准通道别名加载驱动。CPU boost 在 Piano 的 SCMI cpufreq 驱动注册时默认启用，沿用原有 thermal 和 QoS 限制。MCA 是板载电源端点的唯一驱动，内核排除匹配同一 GLINK 端点的 BATTMGR；充电参数通过标准 modprobe 配置提供。
 
-触摸仍需要常驻的 THP 解码器提供 evdev 事件；ADSP 保留显示接管后的 remoteproc 启动及充电配置；无线保留电源时序、DMA 检查和 BlueZ 接管前的公共地址初始化。USB configfs 与 Type-C 插拔生命周期也仍由现有服务处理。这些步骤没有等效的模块装载配置，不能仅靠删脚本替代。
+ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙缺失的本机公共地址由 BlueZ 启动前的标准 MGMT 操作补齐，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
 ## 显示、传感器与无线身份
 
@@ -44,11 +44,11 @@ GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程�
 
 ## 验证镜像的日志采集
 
-`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。内核包在原 BSP 补丁之后回移两项 ath12k 上游修复：保留 MSDU 扩展描述符中的 DMA 地址高位，以及检查发送统计数组的索引范围。补丁的来源记录在 `packages/kernel/` 对应文件中。
+`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。内核包在原 BSP 补丁之后保留 ath12k 的两项上游发送修复和专用 DMA 池，并加入 identity 附着检查、蓝牙电源延迟探测、RPMsg 别名及 CPU boost 默认策略。补丁均保存在 `packages/kernel/`，内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
 
 验证内核编入 ath12k 调试接口、trace 和固件转储；默认 `debug_mask=0x1072`，不自动打开逐包 trace。udev 在内核已经生成 devcoredump 后启动归档服务，只读快照并保存到 Linux 自己的状态目录。日志策略和归档服务均不修改原厂分区。现有 ramoops 与 UEFI 共用控制台内存布局，因此此处不改变它的地址和分配方式。
 
-`configurations/usb-debug.nix` 复用固定 BSP 来源中的 NCM/ACM 脚本及 Type-C 就绪规则，不另建 gadget。ADSP 提供 GLINK/UCSI 后才允许 USB 服务绑定控制器；radio 在 ADSP 之后最多等待 USB 枚举 15 秒。USB 不可用时继续启动，无需连接电脑才能使用镜像。ACM 控制台依赖工作队列和 USB 中断，不能保证全局硬锁死后的输出。采集命令见[安装说明](install.md#通过-usb-采集故障)。
+`configurations/usb-debug.nix` 复用固定 BSP 来源中的 NCM/ACM 脚本及 Type-C 就绪规则，不另建 gadget。ADSP 提供 GLINK/UCSI 后才允许 USB 服务绑定控制器；无线按自身硬件依赖自动启动，不等待 USB。USB 不可用时其他硬件仍正常探测，无需连接电脑才能使用镜像。ACM 控制台依赖工作队列和 USB 中断，不能保证全局硬锁死后的输出。采集命令见[安装说明](install.md#通过-usb-采集故障)。
 
 ## 检查
 

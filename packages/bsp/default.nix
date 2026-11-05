@@ -60,7 +60,7 @@ stdenv.mkDerivation {
     python3 ${./transform.py} \
       --sunuefi "$PWD" --debian ${debianPianoSrc} --output "$out" \
       --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3 \
-      --blkid ${util-linux}/bin/blkid --modprobe ${kmod}/bin/modprobe
+      --blkid ${util-linux}/bin/blkid
 
     make -C linux/userspace/pen OUT="$PWD/pen-build" \
       CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
@@ -109,7 +109,7 @@ stdenv.mkDerivation {
   '';
 
   meta = {
-    description = "Ordered Xiaomi Pad 8 Pro hardware bring-up and touch input";
+    description = "Xiaomi Pad 8 Pro touch input, ALSA profiles and hardware diagnostics";
     platforms = lib.platforms.linux;
     license = with lib.licenses; [
       mit

@@ -7,13 +7,6 @@ import shutil
 import sys
 
 
-START_SCRIPTS = (
-    "touch-start",
-    "radio-start",
-    "adsp-start",
-)
-
-
 def load_module(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
@@ -47,7 +40,6 @@ class ScriptInstaller:
             ),
             ("/usr/bin/python3", args.python),
             ("/usr/sbin/blkid", args.blkid),
-            ("/usr/sbin/modprobe", args.modprobe),
             (
                 "/usr/lib/piano/piano-ram-hardware-prepare",
                 str(self.libexec / "piano-hardware-prepare"),
@@ -71,11 +63,7 @@ class ScriptInstaller:
         target.chmod(0o755)
 
 
-def install_runtime_scripts(source, debian, installer, adapters):
-    for name in START_SCRIPTS:
-        original = debian / "rootfs/overlay/usr/lib/piano" / name
-        installer.write(name, adapters.adapt(name, original.read_bytes()).decode())
-
+def install_runtime_scripts(source, installer):
     installer.write(
         "touch-input", (source / "linux/userspace/pen/piano-touch-input").read_text()
     )
@@ -119,34 +107,26 @@ def install_shared_resources(source, installer):
         dirs_exist_ok=True,
     )
 
-    configuration = installer.output / "etc/modprobe.d"
-    configuration.mkdir(parents=True, exist_ok=True)
-    text = (source / "linux/bsp/common/etc/modprobe.d/piano.conf").read_text()
-    (configuration / "piano.conf").write_text(text.replace("/bin/false", "false"))
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    for name in ("sunuefi", "debian", "output", "shell", "python", "blkid", "modprobe"):
+    for name in ("sunuefi", "debian", "output", "shell", "python", "blkid"):
         parser.add_argument("--" + name, required=True)
 
     args = parser.parse_args()
     source = Path(args.sunuefi)
     debian = Path(args.debian)
 
-    # Load both transformations from the pinned source used by the kernel and
-    # board policy, never from the developer's ambient Python package path.
+    # Load the touch reader source builder from the pinned board source,
+    # never from the developer's ambient Python package path.
     sys.path.insert(0, str(source / "tools"))
-    adapters = load_module(
-        "piano_adapters", source / "tools/stage_piano_ram_hardware.py"
-    )
     helpers = load_module(
         "piano_helpers", source / "tools/build_piano_runtime_helpers.py"
     )
     installer = ScriptInstaller(args)
 
-    install_runtime_scripts(source, debian, installer, adapters)
+    install_runtime_scripts(source, installer)
     install_hardware_checks(source, installer)
     install_shared_resources(source, installer)
 

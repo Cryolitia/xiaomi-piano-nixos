@@ -97,7 +97,7 @@ sudo ip address replace 10.42.0.1/24 dev USB_IFACE
 ssh nixos@10.42.0.2 'sudo journalctl --boot --follow --output=short-monotonic --no-pager' | tee piano-journal-usb.log
 ```
 
-确认电脑已经持续收到日志后，再复现 Wi-Fi 故障。串口输出停止后保留电脑上的两个日志文件；设备重新枚举后需要重新打开串口。无线启动前最多等待 USB 连接 15 秒，没有数据线时仍继续正常启动。
+确认电脑已经持续收到日志后，再复现 Wi-Fi 故障。串口输出停止后保留电脑上的两个日志文件；设备重新枚举后需要重新打开串口。无线不等待 USB，USB 建立后可通过 SSH 读取从启动开始保存的完整 journal。
 
 内核启用 ath12k 调试接口、trace 能力和固件崩溃转储，默认记录 PCI、QMI、固件启动、MAC 和 WMI，不自动开启逐包 trace。固件生成的 `devcoredump` 会保存到 `/var/lib/piano-diagnostics/firmware/`；Linux 日志持久化到 journal，每秒同步一次，磁盘占用上限为 256 MiB。
 

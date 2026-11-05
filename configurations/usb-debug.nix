@@ -47,29 +47,4 @@ in
     };
   };
 
-  systemd.services.piano-radio = {
-    wants = [ "piano-adsp.service" ];
-    after = [ "piano-adsp.service" ];
-
-    # ADSP supplies GLINK/UCSI. Give the host a bounded chance to enumerate the
-    # existing gadget before WLAN can initialize or connect automatically.
-    # Do not require the Type-C device: boot must continue without a USB cable.
-    preStart = ''
-      remaining=15
-      while [ "$remaining" -gt 0 ]; do
-        for state in /sys/class/udc/*/state; do
-          [ -r "$state" ] || continue
-          if [ "$(cat "$state")" = configured ]; then
-            echo "USB diagnostic connection configured; starting WLAN and Bluetooth"
-            exit 0
-          fi
-        done
-
-        sleep 1
-        remaining=$((remaining - 1))
-      done
-
-      echo "USB diagnostic connection unavailable after 15 seconds; continuing WLAN and Bluetooth startup"
-    '';
-  };
 }
