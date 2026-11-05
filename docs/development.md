@@ -24,9 +24,9 @@ ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目
 
 标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理。只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 
-initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplug 自动加载；stage2 使用同一套普通 modalias 机制。设备树表达时钟、电源域、GPIO 和 IOMMU 关系，驱动通过延迟探测等待资源。本项目不再修改 `80-drivers.rules`、设置板级模块黑名单或用专用服务加载存储、显示、键盘、声卡和无线模块。未适配设备在共享设备树中禁用；媒体节点由共享构建策略选择，保留 SunUEFI 其他发行版已有的媒体能力。
+initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplug 自动加载；stage2 使用同一套普通 modalias 机制。设备树表达时钟、电源域、GPIO 和 IOMMU 关系，驱动通过延迟探测等待资源。本项目不再修改 `80-drivers.rules`、设置板级模块黑名单或用专用服务加载存储、显示、键盘、声卡和无线模块。未适配设备在共享设备树中禁用；继承的 CoreSight 追踪节点按 Linux AMBA 外设 ID 识别并禁用，避免寄存器探测阻塞启动。媒体节点由共享构建策略选择，保留 SunUEFI 其他发行版已有的媒体能力。
 
-内核在 identity 映射附着前后检查实际 SMMU 路由与上下文；显式声明 `iommus` 或 `iommu-map` 的设备无法完成配置时直接失败，不降级到无 IOMMU 的 DMA。Adreno 的 GPU、GMU 通过标准延迟附着机制保留初始状态，在驱动分配缓冲区之前同步建立自己的分页域；附着失败会阻止对应驱动初始化。共享设备树归一化会移除 USB3 PHY 的空 `iommus` 列表，将不经过 IOMMU 与映射配置失败区分开。
+内核在 identity 映射附着前后检查实际 SMMU 路由与上下文；实际 DMA 请求设备的 `iommus` 或 `iommu-map` 配置失败时直接拒绝探测，不降级到无 IOMMU 的 DMA；PCI 主桥本身不使用描述下游请求设备的 `iommu-map`。Adreno 的 GPU、GMU 通过标准延迟附着机制保留初始状态，在驱动分配缓冲区之前同步建立自己的分页域；附着失败会阻止对应驱动初始化。共享设备树归一化会移除 USB3 PHY 的空 `iommus` 列表，将不经过 IOMMU 与映射配置失败区分开。
 
 蓝牙电源序列尚未就绪时保留 `-EPROBE_DEFER`；没有 OF compatible 的 RPMsg 通道使用标准通道别名加载驱动。CPU boost 在 Piano 的 SCMI cpufreq 驱动注册时默认启用，沿用原有 thermal 和 QoS 限制。MCA 是板载电源端点的唯一驱动，内核排除匹配同一 GLINK 端点的 BATTMGR；充电参数通过标准 modprobe 配置提供。
 
