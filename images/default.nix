@@ -2,16 +2,11 @@
   config,
   lib,
   pkgs,
-  utils,
   ...
 }:
 let
   cfg = config.piano.image;
   inherit (lib) mkDefault mkOption types;
-  rootDevice = config.fileSystems."/".device;
-  rootDeviceName = utils.escapeSystemdPath rootDevice;
-  rootDeviceUnit = "${rootDeviceName}.device";
-  rootFsckUnit = "systemd-fsck@${rootDeviceName}.service";
   # Build the initial boot entry from the same system that populates root.
   bootFiles =
     pkgs.runCommand "piano-linux-boot-files"
@@ -80,48 +75,7 @@ in
       }
     ];
 
-    # Check the dedicated root identity before fsck or automatic filesystem growth.
     boot.initrd = {
-      systemd.extraBin.blkid = "${config.boot.initrd.systemd.package.util-linux}/bin/blkid";
-      systemd.services.piano-check-root = {
-        description = "Check the Piano root partition before filesystem access";
-        requiredBy = [
-          "sysroot.mount"
-          "systemd-fsck-root.service"
-          rootFsckUnit
-        ];
-        before = [
-          "sysroot.mount"
-          "systemd-fsck-root.service"
-          rootFsckUnit
-        ];
-        after = [ rootDeviceUnit ];
-        requires = [ rootDeviceUnit ];
-        bindsTo = [ rootDeviceUnit ];
-        unitConfig.DefaultDependencies = false;
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          fail() {
-            echo "Piano root refused: $*" >&2
-            exit 1
-          }
-
-          # This gate runs in stage 1, where only the selected block device
-          # and blkid are needed; it does not mount or modify the partition.
-          device=${lib.escapeShellArg rootDevice}
-          test -b "$device" || fail 'The selected root is not a block device.'
-          test "$(/bin/blkid -p -s TYPE -o value "$device")" = ext4 ||
-            fail 'The selected root does not contain ext4.'
-          test "$(/bin/blkid -p -s LABEL -o value "$device")" = PIANOROOT ||
-            fail 'The selected root is not labelled PIANOROOT.'
-          test "$(/bin/blkid -p -s PART_ENTRY_NAME -o value "$device")" = sunuefi_root ||
-            fail 'The selected root is not the sunuefi_root partition.'
-        '';
-      };
-
       compressor = mkDefault "xz";
       compressorArgs = mkDefault (
         if builtins.isString config.boot.initrd.compressor && config.boot.initrd.compressor == "xz" then
@@ -158,7 +112,7 @@ in
 
     fileSystems = {
       "/" = {
-        device = "/dev/disk/by-label/PIANOROOT";
+        device = "/dev/disk/by-partlabel/sunuefi_root";
         fsType = "ext4";
         autoResize = true;
       };
