@@ -42,7 +42,6 @@ stdenv.mkDerivation {
   pname = "piano-bsp";
   version = "1";
   src = sunuefiSrc;
-  patches = [ ./nixos-hardware-check.patch ];
   nativeBuildInputs = [
     python3
     git
@@ -57,7 +56,7 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    # Install the patched runtime scripts with Nix store paths.
+    # Install the shared runtime scripts with Nix store paths.
     python3 ${./transform.py} \
       --sunuefi "$PWD" --debian ${debianPianoSrc} --output "$out" \
       --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3 \
