@@ -77,7 +77,7 @@ def main():
     overlays = apply_overlays(board, args.source, policy, release_tools)
 
     # Board bindings and optional media-device policy live in the shared source.
-    normalization = release_tools.normalize_mainline_bindings(board, enable_media=False)
+    normalization = release_tools.normalize_mainline_bindings(board)
     selection = release_tools.select_panel_vendor(board, args.panel)
 
     Path("manifest.json").write_text(

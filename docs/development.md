@@ -32,6 +32,10 @@ initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplu
 
 ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙缺失的本机公共地址由 BlueZ 启动前的标准 MGMT 操作补齐，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
+相机和视频设备沿用普通 modalias 与延迟探测。CAMSS 和 Iris 在内核中选择 DMA 映射域；不再由启动脚本修改 IOMMU group。`v4l2loopback` 随同一代内核构建，常驻 C 程序 `piano-camerad` 负责传感器曝光、白平衡、对焦和 ISP 输出，向 PipeWire 发布前后摄像头；应用关闭后停止采集。服务以 root/video 运行，控制 socket 只供 video 组访问。WirePlumber 隐藏内部 CAMSS 入口，避免同时出现原始 ISP 与对外摄像头。
+
+FFmpeg 的硬件编解码补丁通过设备模块的 nixpkgs overlay 应用于 FFmpeg 7、9 的普通、headless、full 变体及默认别名，保留各包原有源码与构建选项。使用这些库的包得到同一套修复；自行内置编解码库的应用仍由其自身构建决定。当前媒体设备树会同时启用 CAMCC、CAMBIST；同 SoC 的显示灭屏复位报告尚无确定驱动修复，不能用仅枚举出摄像头来代替采集与灭屏恢复验证。[上游原始报告](https://lists.openwall.net/linux-kernel/2026/10/12/599)
+
 ## 显示、传感器与无线身份
 
 设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)

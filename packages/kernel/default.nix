@@ -63,6 +63,7 @@ let
       ./ath12k-pci-cma.patch
       ./iommu-identity-attach-readback.patch
       ./iommu-adreno-defer-default-domain.patch
+      ./iommu-media-default-domain.patch
       ./bluetooth-qca-defer-power-sequencer.patch
       ./cpufreq-scmi-piano-boost-default.patch
       ./rpmsg-channel-modalias-fallback.patch
