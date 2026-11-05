@@ -151,7 +151,7 @@ in
       configurationLimit = mkDefault 5;
       editor = false;
     };
-    boot.loader.timeout = mkDefault 0;
+    boot.loader.timeout = mkDefault 5;
     boot.loader.efi.efiSysMountPoint = "/boot";
     boot.loader.generic-extlinux-compatible.enable = false;
     boot.loader.efi.canTouchEfiVariables = false;
