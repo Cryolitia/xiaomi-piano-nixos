@@ -26,7 +26,9 @@ ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目
 
 initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplug 自动加载；stage2 使用同一套普通 modalias 机制。设备树表达时钟、电源域、GPIO 和 IOMMU 关系，驱动通过延迟探测等待资源。本项目不再修改 `80-drivers.rules`、设置板级模块黑名单或用专用服务加载存储、显示、键盘、声卡和无线模块。未适配设备在共享设备树中禁用；媒体节点由共享构建策略选择，保留 SunUEFI 其他发行版已有的媒体能力。
 
-内核在 identity 映射附着前后检查实际 SMMU 路由与上下文；显式声明 `iommus` 或 `iommu-map` 的设备无法完成配置时直接失败，不降级到无 IOMMU 的 DMA。蓝牙电源序列尚未就绪时保留 `-EPROBE_DEFER`；没有 OF compatible 的 RPMsg 通道使用标准通道别名加载驱动。CPU boost 在 Piano 的 SCMI cpufreq 驱动注册时默认启用，沿用原有 thermal 和 QoS 限制。MCA 是板载电源端点的唯一驱动，内核排除匹配同一 GLINK 端点的 BATTMGR；充电参数通过标准 modprobe 配置提供。
+内核在 identity 映射附着前后检查实际 SMMU 路由与上下文；显式声明 `iommus` 或 `iommu-map` 的设备无法完成配置时直接失败，不降级到无 IOMMU 的 DMA。Adreno 的 GPU、GMU 通过标准延迟附着机制保留初始状态，在驱动分配缓冲区之前同步建立自己的分页域；附着失败会阻止对应驱动初始化。共享设备树归一化会移除 USB3 PHY 的空 `iommus` 列表，将不经过 IOMMU 与映射配置失败区分开。
+
+蓝牙电源序列尚未就绪时保留 `-EPROBE_DEFER`；没有 OF compatible 的 RPMsg 通道使用标准通道别名加载驱动。CPU boost 在 Piano 的 SCMI cpufreq 驱动注册时默认启用，沿用原有 thermal 和 QoS 限制。MCA 是板载电源端点的唯一驱动，内核排除匹配同一 GLINK 端点的 BATTMGR；充电参数通过标准 modprobe 配置提供。
 
 ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙缺失的本机公共地址由 BlueZ 启动前的标准 MGMT 操作补齐，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
