@@ -56,6 +56,7 @@ in
     vim
     usbutils
     pciutils
+    fastfetch
   ];
 
   fonts.packages = with pkgs; [
