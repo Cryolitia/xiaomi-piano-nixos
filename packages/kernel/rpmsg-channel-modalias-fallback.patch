@@ -1,0 +1,29 @@
+Subject: [PATCH] rpmsg: use channel aliases for nodes without compatible
+
+An RPMsg channel can have a firmware node for channel properties without
+an OF compatible. The OF modalias helper still succeeds for these nodes,
+producing a name-only alias that does not match the RPMsg driver ID table.
+
+Use the OF alias only when a compatible property exists. Otherwise retain
+the ordinary RPMsg channel alias, allowing services such as QRTR to load
+through their existing module aliases. OF-compatible channels and error
+handling keep their current behavior.
+
+---
+--- a/drivers/rpmsg/rpmsg_core.c
++++ b/drivers/rpmsg/rpmsg_core.c
+@@ -417,9 +417,11 @@
+ 	const struct rpmsg_device *rpdev = to_rpmsg_device(dev);
+ 	int ret;
+ 
+-	ret = of_device_uevent_modalias(dev, env);
+-	if (ret != -ENODEV)
+-		return ret;
++	if (of_property_present(dev->of_node, "compatible")) {
++		ret = of_device_uevent_modalias(dev, env);
++		if (ret != -ENODEV)
++			return ret;
++	}
+ 
+ 	return add_uevent_var(env, "MODALIAS=" RPMSG_DEVICE_MODALIAS_FMT,
+ 					rpdev->id.name);

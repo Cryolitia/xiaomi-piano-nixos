@@ -1,0 +1,20 @@
+Subject: [PATCH] cpufreq: scmi: enable the Piano boost frequencies by default
+
+Match the board's existing userspace default at driver registration, before
+CPU policies are created. Keep firmware OPP classification and the normal
+cpufreq thermal and frequency QoS limits; other SCMI boards retain their
+existing default.
+
+---
+--- a/drivers/cpufreq/scmi-cpufreq.c
++++ b/drivers/cpufreq/scmi-cpufreq.c
+@@ -464,6 +464,9 @@
+ 	}
+ #endif
+ 
++	if (of_machine_is_compatible("xiaomi,piano"))
++		scmi_cpufreq_driver.boost_enabled = true;
++
+ 	ret = cpufreq_register_driver(&scmi_cpufreq_driver);
+ 	if (ret) {
+ 		dev_err(dev, "%s: registering cpufreq failed, err: %d\n",

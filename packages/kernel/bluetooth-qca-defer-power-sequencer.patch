@@ -1,0 +1,19 @@
+Subject: [PATCH] Bluetooth: qca: defer when the power sequencer is not ready
+
+Propagate EPROBE_DEFER from the power sequencer instead of treating a
+missing provider as a board without power sequencing. Keep the legacy
+fallback for controllers that intentionally have no sequencer.
+
+---
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -2741,6 +2741,9 @@
+ 			 * through the power sequence. In such cases, fall through
+ 			 * to follow the legacy flow.
+ 			 */
++			if (PTR_ERR_OR_ZERO(qcadev->bt_power->pwrseq) == -EPROBE_DEFER)
++				return -EPROBE_DEFER;
++
+ 			if (IS_ERR(qcadev->bt_power->pwrseq))
+ 				qcadev->bt_power->pwrseq = NULL;
+ 			else

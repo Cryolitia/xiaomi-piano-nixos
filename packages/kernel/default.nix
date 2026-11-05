@@ -12,7 +12,28 @@ args@{
 
 let
   policy = builtins.fromJSON (builtins.readFile (sunuefiSrc + "/config/release.json"));
-  seriesPath = sunuefiSrc + "/${policy.kernel.patch_series}";
+  # Unrelated UEFI, device-tree and runtime changes must not rebuild Linux.
+  kernelInputs = lib.cleanSourceWith {
+    name = "piano-kernel-inputs";
+    src = sunuefiSrc;
+    filter =
+      path: type:
+      lib.any
+        (
+          relative:
+          let
+            selected = toString sunuefiSrc + "/${relative}";
+          in
+          path == selected
+          || lib.hasPrefix (selected + "/") path
+          || (type == "directory" && lib.hasPrefix (path + "/") selected)
+        )
+        [
+          (builtins.dirOf policy.kernel.patch_series)
+          "linux/configs"
+        ];
+  };
+  seriesPath = kernelInputs + "/${policy.kernel.patch_series}";
   series = builtins.fromJSON (builtins.readFile seriesPath);
   patchDirectory = builtins.dirOf seriesPath;
 
@@ -40,9 +61,13 @@ let
       ./ath12k-msdu-dma-address.patch
       ./ath12k-tx-stats-bounds.patch
       ./ath12k-pci-cma.patch
+      ./iommu-identity-attach-readback.patch
+      ./bluetooth-qca-defer-power-sequencer.patch
+      ./cpufreq-scmi-piano-boost-default.patch
+      ./rpmsg-channel-modalias-fallback.patch
     ];
     postPatch = ''
-      ${buildPackages.python3.interpreter} ${./config.py} . ${sunuefiSrc}
+      ${buildPackages.python3.interpreter} ${./config.py} . ${kernelInputs}
     '';
   };
 
@@ -111,8 +136,8 @@ let
           IP_NF_MATCH_RPFILTER = lib.mkDefault module;
           IP6_NF_MATCH_RPFILTER = lib.mkDefault module;
 
-          # These consumers are started in the board's verified order. Nixpkgs'
-          # generic config must not turn them into early built-in DMA masters.
+          # Keep the storage-only initrd small. Other board drivers are loaded
+          # by their ordinary device aliases once the full module tree is mounted.
           ARM_SMMU = lib.mkForce module;
           DRM_MSM = lib.mkForce module;
           QCOM_Q6V5_PAS = lib.mkForce module;
@@ -125,6 +150,10 @@ let
           SCSI_UFSHCD = lib.mkForce module;
           SCSI_UFS_QCOM = lib.mkForce module;
           PHY_QCOM_QMP_UFS = lib.mkForce module;
+
+          # MCA provides the board's charging protocol. BATTMGR matches the
+          # same GLINK auxiliary device and must not compete for that endpoint.
+          BATTERY_QCOM_BATTMGR = lib.mkForce no;
 
           DEBUG_INFO = lib.mkForce no;
           DEBUG_INFO_NONE = lib.mkForce yes;
@@ -164,13 +193,16 @@ kernel.overrideAttrs (old: {
       }
     done
 
-    # An early built-in DMA consumer could start before its SMMU or clocks.
-    # These drivers must stay modular for the board's ordered bring-up units.
+    # Both drivers claim pmic_glink.power-supply; only MCA may bind here.
+    grep -qx '# CONFIG_BATTERY_QCOM_BATTMGR is not set' "$piano_config"
+
+    # These drivers must remain available to the storage-only initrd and the
+    # subsequent ordinary module autoloading pass.
     for setting in ARM_SMMU DRM_MSM QCOM_Q6V5_PAS QCOM_PMIC_GLINK PINCTRL_SM8750 \
                    QCOM_GPI_DMA I2C_QCOM_GENI SPI_QCOM_GENI PHY_QCOM_QMP_PCIE \
                    SCSI_UFSHCD SCSI_UFS_QCOM PHY_QCOM_QMP_UFS; do
       grep -qx "CONFIG_$setting=m" "$piano_config" || {
-        echo "Piano driver must remain an ordered loadable module: $setting" >&2
+        echo "Piano driver must remain a loadable module: $setting" >&2
         exit 1
       }
     done
