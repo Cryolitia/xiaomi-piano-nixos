@@ -108,6 +108,8 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
+  passthru = { inherit debianPianoSrc; };
+
   meta = {
     description = "Xiaomi Pad 8 Pro touch input, ALSA profiles and hardware diagnostics";
     platforms = lib.platforms.linux;

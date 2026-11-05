@@ -1,0 +1,47 @@
+{
+  config,
+  pianoPackages,
+  pkgs,
+  ...
+}:
+
+let
+  camera = pianoPackages.camera;
+in
+{
+  # These virtual devices have no physical alias to trigger module loading.
+  # CAMSS, the sensors and their suppliers use ordinary OF deferred probing.
+  boot.extraModulePackages = [ config.boot.kernelPackages.v4l2loopback ];
+  boot.kernelModules = [ "v4l2loopback" ];
+  boot.extraModprobeConfig = camera.loopbackOptions;
+
+  environment.systemPackages = [
+    camera
+    pkgs.v4l-utils
+  ];
+  services.udev.packages = [ camera ];
+  services.pipewire.wireplumber.configPackages = [ camera ];
+  users.groups.video = { };
+
+  systemd.services.piano-camerad = {
+    description = "Piano camera output";
+    wantedBy = [ "multi-user.target" ];
+    after = [
+      "systemd-modules-load.service"
+      "systemd-udev-trigger.service"
+    ];
+    # Advertise the initialized loopback capture devices before the session
+    # starts. Real sensor streaming begins only when an application requests it.
+    before = [ "systemd-user-sessions.service" ];
+    serviceConfig = {
+      Type = "notify";
+      NotifyAccess = "main";
+      ExecStart = "${camera}/libexec/piano-camerad";
+      Group = "video";
+      RuntimeDirectory = "piano-camerad";
+      RuntimeDirectoryMode = "0750";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+  };
+}

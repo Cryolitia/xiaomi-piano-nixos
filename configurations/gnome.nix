@@ -57,6 +57,7 @@ in
     usbutils
     pciutils
     fastfetch
+    ffmpeg
   ];
 
   fonts.packages = with pkgs; [

@@ -17,6 +17,8 @@ in
     ./boot.nix
     ./runtime.nix
     ./audio.nix
+    ./camera.nix
+    ./video.nix
     ./fingerprint.nix
     ./sensors.nix
   ];
