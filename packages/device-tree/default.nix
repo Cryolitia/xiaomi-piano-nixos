@@ -7,13 +7,17 @@
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
   panel ? "auto",
   boardDtb ? null,
-  memoryLayout ? null,
+  memoryGiB ? 16,
 }:
 
 assert builtins.elem panel [
   "auto"
   "boe"
   "csot"
+];
+assert builtins.elem memoryGiB [
+  16
+  24
 ];
 stdenvNoCC.mkDerivation {
   pname = "piano-device-tree";
@@ -27,11 +31,11 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    # Keep the builder and local board overlays together in the store.
-    # The remaining board overlays follow the pinned SunUEFI policy.
+    # The adapter supplies Nix paths; all board data and transforms follow
+    # the pinned SunUEFI source.
     python3 ${./.}/build.py ${sunuefiSrc} ${panel} \
       ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")} \
-      ${lib.escapeShellArg (if memoryLayout == null then "-" else "${memoryLayout}")}
+      ${toString memoryGiB}
 
     runHook postBuild
   '';

@@ -13,10 +13,7 @@ def load_tools(source):
     # These helpers and their overlay policy are pinned together in SunUEFI.
     # Import them only after the explicit source directory is known.
     sys.path.insert(0, str(source / "tools"))
-    return (
-        importlib.import_module("compose_piano_dtb"),
-        importlib.import_module("package_release"),
-    )
+    return importlib.import_module("package_release")
 
 
 def copy_board(source, custom_board):
@@ -45,45 +42,6 @@ def copy_board(source, custom_board):
     return board, original_hash, manifest
 
 
-def apply_memory_layout(board, original_hash, memory_path, tree_tools):
-    if memory_path == "-":
-        return None
-
-    memory = json.loads(Path(memory_path).read_text())
-
-    if original_hash != memory["baseSha256"]:
-        raise ValueError("The selected RAM profile does not match the base DTB")
-
-    # A capacity selection may change only the four reviewed DDR properties.
-    # It must not replace unrelated devices or carveouts in the source tree.
-    properties = memory["properties"]
-
-    if (
-        set(properties) != {"/memory", "/ddr-regions"}
-        or set(properties["/memory"]) != {"reg", "ddr_size", "ddr_manufacturer_id"}
-        or set(properties["/ddr-regions"]) != {"region2"}
-    ):
-        raise ValueError(
-            "RAM profiles may replace only the four verified DDR properties"
-        )
-
-    parsed = tree_tools.read_fdt(board.read_bytes())
-
-    for node, values in properties.items():
-        if node not in parsed["tree"]:
-            raise ValueError("RAM profile target is missing: " + node)
-
-        for key, value in values.items():
-            parsed["tree"][node][key] = bytes.fromhex(value)
-
-    board.write_bytes(tree_tools.write_fdt(parsed))
-
-    if hashlib.sha256(board.read_bytes()).hexdigest() != memory["resultSha256"]:
-        raise ValueError("The selected RAM profile did not produce its verified DTB")
-
-    return memory
-
-
 def apply_overlays(board, source, policy, release_tools):
     work = Path("overlays")
     work.mkdir()
@@ -108,29 +66,18 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("panel")
     parser.add_argument("custom_board", nargs="?", default="-")
-    parser.add_argument("memory_path", nargs="?", default="-")
+    parser.add_argument("memory_gib", nargs="?", type=int, choices=(16, 24), default=16)
     args = parser.parse_args()
 
-    tree_tools, release_tools = load_tools(args.source)
+    release_tools = load_tools(args.source)
     policy = json.loads((args.source / "config/release.json").read_text())["kernel"]
 
     board, original_hash, manifest = copy_board(args.source, args.custom_board)
-    memory = apply_memory_layout(board, original_hash, args.memory_path, tree_tools)
+    memory = release_tools.apply_memory_layout(board, args.memory_gib)
     overlays = apply_overlays(board, args.source, policy, release_tools)
 
-    # Remove downstream-only consumers before converting the shared MMSS
-    # provider to the standard two-cell binding. DPU inherits its bandwidth
-    # paths from MDSS; panel selection then records the final shipped tree.
-    normalization = release_tools.normalize_mainline_bindings(board)
-    for name in ("display-interconnects.dtso", "wifi-memory.dtso"):
-        overlays.append(
-            release_tools.apply_cpu_model_overlay(
-                board,
-                Path(__file__).with_name(name),
-                Path("overlays"),
-                cpu_only=False,
-            )
-        )
+    # Board bindings and optional media-device policy live in the shared source.
+    normalization = release_tools.normalize_mainline_bindings(board, enable_media=False)
     selection = release_tools.select_panel_vendor(board, args.panel)
 
     Path("manifest.json").write_text(
