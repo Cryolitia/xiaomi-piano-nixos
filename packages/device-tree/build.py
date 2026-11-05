@@ -122,14 +122,15 @@ def main():
     # provider to the standard two-cell binding. DPU inherits its bandwidth
     # paths from MDSS; panel selection then records the final shipped tree.
     normalization = release_tools.normalize_mainline_bindings(board)
-    overlays.append(
-        release_tools.apply_cpu_model_overlay(
-            board,
-            Path(__file__).with_name("display-interconnects.dtso"),
-            Path("overlays"),
-            cpu_only=False,
+    for name in ("display-interconnects.dtso", "wifi-memory.dtso"):
+        overlays.append(
+            release_tools.apply_cpu_model_overlay(
+                board,
+                Path(__file__).with_name(name),
+                Path("overlays"),
+                cpu_only=False,
+            )
         )
-    )
     selection = release_tools.select_panel_vendor(board, args.panel)
 
     Path("manifest.json").write_text(

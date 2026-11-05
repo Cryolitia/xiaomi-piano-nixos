@@ -1,0 +1,54 @@
+Subject: [PATCH] wifi: ath12k: attach PCI DMA pools before DMA allocations
+
+A reusable shared-dma-pool referenced by a PCI endpoint is not attached
+by the PCI core. Without an explicit reserved-memory initialization,
+coherent allocations use the global CMA pool instead of the pool assigned
+to the device.
+
+Initialize the first memory-region only when it references a
+shared-dma-pool. Leave other region types, such as firmware carveouts or
+restricted DMA pools, on their existing path. Attach the pool after
+setting the DMA mask and before enabling bus mastering or allocating MHI
+and CE rings.
+
+Use the managed helper so the association remains valid through probe
+error cleanup and removal and is released afterwards. Release the OF
+node reference on every return path using the standard scoped cleanup.
+
+---
+--- a/drivers/net/wireless/ath/ath12k/pci.c
++++ b/drivers/net/wireless/ath/ath12k/pci.c
+@@ -7,6 +7,8 @@
+ #include <linux/module.h>
+ #include <linux/interrupt.h>
+ #include <linux/msi.h>
++#include <linux/of.h>
++#include <linux/of_reserved_mem.h>
+ #include <linux/pci.h>
+ #include <linux/time.h>
+ #include <linux/vmalloc.h>
+@@ -830,6 +832,8 @@
+ 
+ static int ath12k_pci_claim(struct ath12k_pci *ab_pci, struct pci_dev *pdev)
+ {
++	struct device_node *mem_node __free(device_node) =
++		of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+ 	struct ath12k_base *ab = ab_pci->ab;
+ 	u16 device_id;
+ 	int ret = 0;
+@@ -865,6 +869,15 @@
+ 	if (ret) {
+ 		ath12k_err(ab, "failed to set DMA mask: %d\n", ret);
+ 		goto release_region;
++	}
++
++	/* Bind a DMA pool before allocating MHI and CE rings. */
++	if (of_device_is_compatible(mem_node, "shared-dma-pool")) {
++		ret = devm_of_reserved_mem_device_init(&pdev->dev);
++		if (ret) {
++			ath12k_err(ab, "failed to initialize reserved memory: %d\n", ret);
++			goto release_region;
++		}
+ 	}
+ 
+ 	pci_set_master(pdev);

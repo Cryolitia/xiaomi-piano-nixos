@@ -27,7 +27,7 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    # Keep the builder and local display overlay together in the store.
+    # Keep the builder and local board overlays together in the store.
     # The remaining board overlays follow the pinned SunUEFI policy.
     python3 ${./.}/build.py ${sunuefiSrc} ${panel} \
       ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")} \

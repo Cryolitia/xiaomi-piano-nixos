@@ -35,10 +35,11 @@ let
       rev = series.base_commit;
       hash = "sha256-ca8CMAWKe1yzkQIn8sasUQxMLqdtfvC+wBFtX3819Zk=";
     };
-    # Retain upstream TX fixes missing from the BSP's Wi-Fi 7 snapshot.
+    # Keep the upstream TX fixes and attach the board's WLAN DMA pool.
     patches = map checkedPatch series.patches ++ [
       ./ath12k-msdu-dma-address.patch
       ./ath12k-tx-stats-bounds.patch
+      ./ath12k-pci-cma.patch
     ];
     postPatch = ''
       ${buildPackages.python3.interpreter} ${./config.py} . ${sunuefiSrc}
