@@ -1,8 +1,11 @@
-Subject: [PATCH] iommu: require declared mappings and verify identity routes
+Subject: [PATCH] iommu: require requester mappings and verify identity routes
 
-Do not fall back to direct DMA when a device explicitly declares an IOMMU
-and its configuration fails. Cover both platform iommus and PCI host
-iommu-map properties, whose errors flow through of_dma_configure().
+Do not fall back to direct DMA when a requester explicitly declares an
+IOMMU and its configuration fails. Require platform iommus mappings and
+require iommu-map only for PCI requesters or explicit input IDs, matching
+the parsing paths in of_iommu_configure(). A PCI host platform device does
+not consume the iommu-map that describes its downstream requesters.
+
 Verify inherited or emulated identity contexts before writing stream
 routes, then reuse the existing hardware readback before completing
 identity attachment. Only architectural fault bits reject a context;
@@ -15,14 +18,21 @@ The sysfs diagnostics continue to use the same checker.
 ---
 --- a/drivers/of/device.c
 +++ b/drivers/of/device.c
-@@ -149,12 +149,15 @@
+@@ -9,4 +9,5 @@
+ #include <linux/dma-map-ops.h>
+ #include <linux/init.h>
++#include <linux/pci.h>
+ #include <linux/slab.h>
+ #include <linux/platform_device.h>
+@@ -149,12 +150,16 @@
  		coherent ? " " : " not ");
  
  	ret = of_iommu_configure(dev, np, id);
 -	if (ret == -EPROBE_DEFER) {
 +	if (ret == -EPROBE_DEFER ||
 +	    (ret && (of_property_present(np, "iommus") ||
-+		     of_property_present(np, "iommu-map")))) {
++		     ((id || dev_is_pci(dev)) &&
++		      of_property_present(np, "iommu-map"))))) {
 +		/* A declared IOMMU is required, even when its attach fails. */
  		/* Don't touch range map if it wasn't set from a valid dma-ranges */
  		if (set_map)
