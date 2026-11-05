@@ -1,0 +1,431 @@
+Subject: [PATCH] power: support locking and blanking with the power button
+
+Add lock-screen as a distinct power-button action. MediaKeys captures the
+press-time display state and triggers on release; the existing Power manager
+owns locking and the normal idle/display transitions. Confirm the requested
+Mutter power state before replying, and ignore requests while one is pending.
+Retain the four existing action values, defaults, and activation behavior.
+
+diff --git a/data/gnome-settings-daemon/gsd-enums.h b/data/gnome-settings-daemon/gsd-enums.h
+--- a/data/gnome-settings-daemon/gsd-enums.h
++++ b/data/gnome-settings-daemon/gsd-enums.h
+@@ -107,7 +107,8 @@
+   GSD_POWER_BUTTON_ACTION_NOTHING,
+   GSD_POWER_BUTTON_ACTION_SUSPEND,
+   GSD_POWER_BUTTON_ACTION_HIBERNATE,
+-  GSD_POWER_BUTTON_ACTION_INTERACTIVE
++  GSD_POWER_BUTTON_ACTION_INTERACTIVE,
++  GSD_POWER_BUTTON_ACTION_LOCK_SCREEN
+ } GsdPowerButtonActionType;
+ 
+ typedef enum
+diff --git a/data/org.gnome.settings-daemon.plugins.power.gschema.xml.in b/data/org.gnome.settings-daemon.plugins.power.gschema.xml.in
+--- a/data/org.gnome.settings-daemon.plugins.power.gschema.xml.in
++++ b/data/org.gnome.settings-daemon.plugins.power.gschema.xml.in
+@@ -39,7 +39,7 @@
+     <key name="power-button-action" enum="org.gnome.settings-daemon.GsdPowerButtonActionType">
+       <default>'suspend'</default>
+       <summary>Power button action</summary>
+-      <description>The action to take when the system power button is pressed. Virtual machines only honor the 'nothing' action, and will shutdown otherwise. Tablets always suspend, ignoring all the other action options.</description>
++      <description>The action to take when the system power button is pressed. The 'lock-screen' action locks and blanks a lit screen, or wakes a blank screen without unlocking it. Virtual machines only honor 'nothing' and 'lock-screen', and will shutdown for other actions.</description>
+     </key>
+     <key name="power-saver-profile-on-low-battery" type="b">
+       <default>true</default>
+diff --git a/plugins/media-keys/gsd-media-keys-manager.c b/plugins/media-keys/gsd-media-keys-manager.c
+--- a/plugins/media-keys/gsd-media-keys-manager.c
++++ b/plugins/media-keys/gsd-media-keys-manager.c
+@@ -181,6 +181,9 @@
+         char            *chassis_type;
+         gboolean         power_button_disabled;
+         guint            reenable_power_button_timer_id;
++        guint            power_button_accel_id;
++        gint             power_button_power_save_mode;
++        char            *power_button_device_node;
+ 
+         /* Shell stuff */
+         GsdShell        *shell_proxy;
+@@ -2141,6 +2144,10 @@
+ 
+         action_type = g_settings_get_enum (priv->power_settings, "power-button-action");
+         /* Always power off VMs, except when power-button-action is "nothing" */
++        /* Lock-screen is handled on release, with the press-time display state. */
++        if (action_type == GSD_POWER_BUTTON_ACTION_LOCK_SCREEN)
++                return;
++
+         if (g_strcmp0 (priv->chassis_type, "vm") == 0) {
+                 g_warning_once ("Virtual machines only honor the 'nothing' power-button-action, and will shutdown otherwise");
+ 
+@@ -2163,6 +2170,7 @@
+         default:
+                 g_warn_if_reached ();
+                 G_GNUC_FALLTHROUGH;
++        case GSD_POWER_BUTTON_ACTION_LOCK_SCREEN:
+         case GSD_POWER_BUTTON_ACTION_NOTHING:
+                 /* do nothing */
+                 return;
+@@ -2578,20 +2586,68 @@
+ }
+ 
+ static void
++power_button_action_done (GObject      *source,
++                          GAsyncResult *result,
++                          gpointer      user_data)
++{
++        g_autoptr(GVariant) reply = NULL;
++        g_autoptr(GError) error = NULL;
++        g_autofree char *remote_error = NULL;
++
++        reply = g_dbus_proxy_call_finish (G_DBUS_PROXY (source), result, &error);
++        if (reply || g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
++                return;
++
++        remote_error = g_dbus_error_get_remote_error (error);
++        if (g_strcmp0 (remote_error, "org.gnome.SettingsDaemon.Power.Error.Busy") == 0)
++                g_debug ("Ignoring power button while the previous action is pending");
++        else
++                g_warning ("Power button lock-screen action failed: %s", error->message);
++}
++
++static void
++on_accelerator_deactivated (ShellKeyGrabber     *grabber,
++                            guint                accel_id,
++                            GVariant            *parameters,
++                            GsdMediaKeysManager *manager)
++{
++        GsdMediaKeysManagerPrivate *priv = GSD_MEDIA_KEYS_MANAGER_GET_PRIVATE (manager);
++        g_autofree char *device_node = NULL;
++        gint power_save_mode;
++
++        g_variant_lookup (parameters, "device-node", "s", &device_node);
++        if (accel_id != priv->power_button_accel_id ||
++            g_strcmp0 (device_node, priv->power_button_device_node) != 0)
++                return;
++
++        power_save_mode = priv->power_button_power_save_mode;
++        priv->power_button_accel_id = 0;
++        g_clear_pointer (&priv->power_button_device_node, g_free);
++
++        if (priv->power_button_disabled || !priv->power_proxy ||
++            g_settings_get_enum (priv->power_settings, "power-button-action") !=
++            GSD_POWER_BUTTON_ACTION_LOCK_SCREEN)
++                return;
++
++        g_dbus_proxy_call (priv->power_proxy, "HandlePowerButton",
++                           g_variant_new ("(i)", power_save_mode),
++                           G_DBUS_CALL_FLAGS_NONE, -1, priv->bus_cancellable,
++                           power_button_action_done, NULL);
++}
++
++static void
+ on_accelerator_activated (ShellKeyGrabber     *grabber,
+                           guint                accel_id,
+                           GVariant            *parameters,
+                           GsdMediaKeysManager *manager)
+ {
+         GsdMediaKeysManagerPrivate *priv = GSD_MEDIA_KEYS_MANAGER_GET_PRIVATE (manager);
+-        GVariantDict dict;
++        g_auto(GVariantDict) dict = G_VARIANT_DICT_INIT (parameters);
+         guint i;
+         guint deviceid;
+         gchar *device_node;
+         guint timestamp;
+         guint mode;
+-
+-        g_variant_dict_init (&dict, parameters);
+ 
+         if (!g_variant_dict_lookup (&dict, "device-id", "u", &deviceid))
+               deviceid = 0;
+@@ -2620,7 +2676,26 @@
+ 
+                 if (key->key_type == CUSTOM_KEY)
+                         do_custom_action (manager, device_node, key, timestamp);
+-                else
++                else if (key->key_type == POWER_KEY &&
++                         g_settings_get_enum (priv->power_settings, "power-button-action") ==
++                         GSD_POWER_BUTTON_ACTION_LOCK_SCREEN) {
++                        gint power_save_mode;
++
++                        if (!priv->power_button_disabled &&
++                            (priv->power_button_accel_id == 0 ||
++                             priv->power_button_accel_id != accel_id ||
++                             g_strcmp0 (priv->power_button_device_node, device_node) != 0)) {
++                                if (g_variant_dict_lookup (&dict, "power-save-mode", "i", &power_save_mode) &&
++                                    power_save_mode >= 0 && power_save_mode <= 3) {
++                                        priv->power_button_accel_id = accel_id;
++                                        priv->power_button_power_save_mode = power_save_mode;
++                                        g_free (priv->power_button_device_node);
++                                        priv->power_button_device_node = g_strdup (device_node);
++                                } else {
++                                        g_warning ("Power button lock-screen action needs the display state from Shell");
++                                }
++                        }
++                } else
+                         do_action (manager, device_node, mode, key->key_type, timestamp);
+ 
+                 g_free (device_node);
+@@ -2863,6 +2938,8 @@
+ 
+         g_signal_connect (priv->key_grabber, "accelerator-activated",
+                           G_CALLBACK (on_accelerator_activated), manager);
++        g_signal_connect (priv->key_grabber, "accelerator-deactivated",
++                          G_CALLBACK (on_accelerator_deactivated), manager);
+ 
+         init_kbd (manager);
+ }
+@@ -2876,6 +2953,8 @@
+         name_owner = g_dbus_proxy_get_name_owner (G_DBUS_PROXY (priv->shell_proxy));
+ 
+         g_ptr_array_set_size (priv->keys, 0);
++        priv->power_button_accel_id = 0;
++        g_clear_pointer (&priv->power_button_device_node, g_free);
+         g_clear_object (&priv->key_grabber);
+ 
+         if (name_owner) {
+@@ -3586,6 +3665,8 @@
+                 g_clear_object (&priv->bus_cancellable);
+         }
+ 
++        priv->power_button_accel_id = 0;
++        g_clear_pointer (&priv->power_button_device_node, g_free);
+         g_clear_object (&priv->power_proxy);
+         g_clear_object (&priv->power_keyboard_proxy);
+         g_clear_object (&priv->composite_device);
+diff --git a/plugins/media-keys/org.gnome.ShellKeyGrabber.xml b/plugins/media-keys/org.gnome.ShellKeyGrabber.xml
+--- a/plugins/media-keys/org.gnome.ShellKeyGrabber.xml
++++ b/plugins/media-keys/org.gnome.ShellKeyGrabber.xml
+@@ -23,5 +23,9 @@
+       <arg type="u" name="action"/>
+       <arg type="a{sv}" name="parameters"/>
+     </signal>
++    <signal name="AcceleratorDeactivated">
++      <arg type="u" name="action"/>
++      <arg type="a{sv}" name="parameters"/>
++    </signal>
+   </interface>
+ </node>
+diff --git a/plugins/media-keys/shell-action-modes.h b/plugins/media-keys/shell-action-modes.h
+--- a/plugins/media-keys/shell-action-modes.h
++++ b/plugins/media-keys/shell-action-modes.h
+@@ -50,4 +50,5 @@
+   META_KEY_BINDING_IS_REVERSED  = 1 << 2,
+   META_KEY_BINDING_NON_MASKABLE = 1 << 3,
+   META_KEY_BINDING_IGNORE_AUTOREPEAT = 1 << 4,
++  META_KEY_BINDING_TRIGGER_RELEASE = 1 << 7,
+ } MetaKeyBindingFlags;
+\ No newline at end of file
+diff --git a/plugins/media-keys/shortcuts-list.h b/plugins/media-keys/shortcuts-list.h
+--- a/plugins/media-keys/shortcuts-list.h
++++ b/plugins/media-keys/shortcuts-list.h
+@@ -87,7 +87,7 @@
+         { TOGGLE_CONTRAST_KEY, "toggle-contrast", FALSE, SHELL_ACTION_MODE_ALL, META_KEY_BINDING_IGNORE_AUTOREPEAT },
+         { MAGNIFIER_ZOOM_IN_KEY, "magnifier-zoom-in", FALSE, SHELL_ACTION_MODE_ALL },
+         { MAGNIFIER_ZOOM_OUT_KEY, "magnifier-zoom-out", FALSE, SHELL_ACTION_MODE_ALL },
+-        { POWER_KEY, "power", TRUE, POWER_KEYS_MODE, META_KEY_BINDING_IGNORE_AUTOREPEAT },
++        { POWER_KEY, "power", TRUE, POWER_KEYS_MODE, META_KEY_BINDING_IGNORE_AUTOREPEAT | META_KEY_BINDING_TRIGGER_RELEASE },
+         /* the kernel / Xorg names really are like this... */
+         { SUSPEND_KEY, "suspend", TRUE, POWER_KEYS_MODE, META_KEY_BINDING_IGNORE_AUTOREPEAT },
+         { HIBERNATE_KEY, "hibernate", TRUE, POWER_KEYS_MODE, META_KEY_BINDING_IGNORE_AUTOREPEAT },
+diff --git a/plugins/power/gsd-power-manager.c b/plugins/power/gsd-power-manager.c
+--- a/plugins/power/gsd-power-manager.c
++++ b/plugins/power/gsd-power-manager.c
+@@ -101,6 +101,11 @@
+ 
+ static const gchar introspection_xml[] =
+ "<node>"
++"  <interface name='org.gnome.SettingsDaemon.Power'>"
++"    <method name='HandlePowerButton'>"
++"      <arg type='i' name='press_power_save_mode' direction='in'/>"
++"    </method>"
++"  </interface>"
+ "  <interface name='org.gnome.SettingsDaemon.Power.Keyboard'>"
+ "    <property name='Brightness' type='i' access='readwrite'/>"
+ "    <property name='Steps' type='i' access='read'/>"
+@@ -144,6 +149,9 @@
+         /* Screensaver */
+         GsdScreenSaver          *screensaver_proxy;
+         gboolean                 screensaver_active;
++        GDBusMethodInvocation   *power_button_invocation;
++        GCancellable            *power_button_cancellable;
++        gint                     power_button_target_mode;
+ 
+         /* State */
+         gboolean                 lid_is_closed;
+@@ -1964,6 +1972,142 @@
+         }
+ }
+ 
++static void
++power_button_complete (GsdPowerManager *manager,
++                       const GError    *error)
++{
++        if (manager->power_button_invocation) {
++                if (error)
++                        g_dbus_method_invocation_return_gerror (manager->power_button_invocation, error);
++                else
++                        g_dbus_method_invocation_return_value (manager->power_button_invocation, NULL);
++                g_clear_object (&manager->power_button_invocation);
++        }
++        g_clear_object (&manager->power_button_cancellable);
++}
++
++static void
++power_button_readback_done (GObject      *source,
++                            GAsyncResult *result,
++                            gpointer      user_data)
++{
++        g_autoptr(GsdPowerManager) manager = user_data;
++        g_autoptr(GVariant) reply = NULL;
++        g_autoptr(GVariant) wrapped = NULL;
++        g_autoptr(GVariant) mode = NULL;
++        g_autoptr(GError) error = NULL;
++
++        reply = g_dbus_connection_call_finish (G_DBUS_CONNECTION (source), result, &error);
++        if (!manager->power_button_invocation)
++                return;
++        if (reply) {
++                g_variant_get (reply, "(@v)", &wrapped);
++                mode = g_variant_get_variant (wrapped);
++                if (!g_variant_is_of_type (mode, G_VARIANT_TYPE_INT32) ||
++                    g_variant_get_int32 (mode) != manager->power_button_target_mode)
++                        g_set_error_literal (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
++                                             "The display did not enter the requested power mode");
++        }
++        power_button_complete (manager, error);
++}
++
++static void
++power_button_set_idle (GsdPowerManager *manager)
++{
++        GDBusProxy *display_config = G_DBUS_PROXY (manager->display_config);
++
++        if (!manager->session || !manager->session_is_active) {
++                g_autoptr(GError) error = g_error_new_literal (G_DBUS_ERROR, G_DBUS_ERROR_ACCESS_DENIED,
++                                                              "The session is no longer active");
++                power_button_complete (manager, error);
++                return;
++        }
++
++        if (manager->power_button_target_mode == GSD_POWER_SAVE_MODE_OFF) {
++                if (manager->current_idle_mode == GSD_POWER_IDLE_MODE_BLANK)
++                        disable_monitors (manager);
++                else
++                        idle_set_mode (manager, GSD_POWER_IDLE_MODE_BLANK);
++        } else {
++                idle_set_mode (manager, GSD_POWER_IDLE_MODE_NORMAL);
++        }
++
++        /* The ordinary setter and this readback use the same connection.
++         * Do not report success merely because the asynchronous set started. */
++        g_dbus_connection_call (g_dbus_proxy_get_connection (display_config),
++                                g_dbus_proxy_get_name (display_config),
++                                g_dbus_proxy_get_object_path (display_config),
++                                "org.freedesktop.DBus.Properties", "Get",
++                                g_variant_new ("(ss)", "org.gnome.Mutter.DisplayConfig", "PowerSaveMode"),
++                                G_VARIANT_TYPE ("(v)"), G_DBUS_CALL_FLAGS_NONE, -1,
++                                manager->power_button_cancellable,
++                                power_button_readback_done, g_object_ref (manager));
++}
++
++static void
++power_button_locked (GObject      *source,
++                     GAsyncResult *result,
++                     gpointer      user_data)
++{
++        g_autoptr(GsdPowerManager) manager = user_data;
++        g_autoptr(GVariant) reply = NULL;
++        g_autoptr(GError) error = NULL;
++
++        reply = g_dbus_proxy_call_finish (G_DBUS_PROXY (source), result, &error);
++        if (!manager->power_button_invocation)
++                return;
++        if (!reply) {
++                power_button_complete (manager, error);
++                return;
++        }
++        power_button_set_idle (manager);
++}
++
++static void
++handle_power_button (GsdPowerManager       *manager,
++                      GVariant              *parameters,
++                      GDBusMethodInvocation *invocation)
++{
++        gint press_power_save_mode;
++
++        if (!manager->session || !manager->session_is_active) {
++                g_dbus_method_invocation_return_error_literal (invocation, G_DBUS_ERROR,
++                                                               G_DBUS_ERROR_ACCESS_DENIED,
++                                                               "The session is not active");
++                return;
++        }
++        if (manager->power_button_invocation) {
++                g_dbus_method_invocation_return_dbus_error (invocation,
++                        "org.gnome.SettingsDaemon.Power.Error.Busy", "A power button action is pending");
++                return;
++        }
++        g_variant_get (parameters, "(i)", &press_power_save_mode);
++        if (press_power_save_mode < GSD_POWER_SAVE_MODE_ON ||
++            press_power_save_mode > GSD_POWER_SAVE_MODE_OFF ||
++            g_settings_get_enum (manager->settings, "power-button-action") !=
++            GSD_POWER_BUTTON_ACTION_LOCK_SCREEN) {
++                g_dbus_method_invocation_return_error_literal (invocation, G_DBUS_ERROR,
++                                                               G_DBUS_ERROR_INVALID_ARGS,
++                                                               "The lock-screen action needs a valid press-time display state");
++                return;
++        }
++
++        manager->power_button_invocation = g_object_ref (invocation);
++        manager->power_button_cancellable = g_cancellable_new ();
++        manager->power_button_target_mode = press_power_save_mode == GSD_POWER_SAVE_MODE_ON ?
++                                            GSD_POWER_SAVE_MODE_OFF : GSD_POWER_SAVE_MODE_ON;
++        if (manager->power_button_target_mode == GSD_POWER_SAVE_MODE_OFF) {
++                /* This completes after the synchronous, non-animated lock.
++                 * Its ActiveChanged signal is ordered before the reply, so
++                 * a later fade cannot overwrite the next wake-up action. */
++                g_dbus_proxy_call (G_DBUS_PROXY (manager->screensaver_proxy), "LockImmediately", NULL,
++                                   G_DBUS_CALL_FLAGS_NONE, -1, manager->power_button_cancellable,
++                                   power_button_locked, g_object_ref (manager));
++        } else {
++                power_button_set_idle (manager);
++        }
++}
++
+ static gboolean
+ idle_is_session_inhibited (GsdPowerManager  *manager,
+                            GsmInhibitorFlag  mask,
+@@ -2387,7 +2531,7 @@
+                  * and its fade has finished.
+                  *
+                  * See also idle_configure() */
+-                if (active)
++                if (active && !manager->power_button_invocation)
+                         idle_set_mode (manager, GSD_POWER_IDLE_MODE_BLANK);
+         }
+ }
+@@ -3257,6 +3401,13 @@
+ 
+         g_debug ("Stopping power manager");
+ 
++        if (manager->power_button_cancellable) {
++                g_autoptr(GError) error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_CANCELLED,
++                                                              "Power manager is stopping");
++                g_cancellable_cancel (manager->power_button_cancellable);
++                power_button_complete (manager, error);
++        }
++
+         if (manager->inhibit_lid_switch_timer_id != 0) {
+                 g_source_remove (manager->inhibit_lid_switch_timer_id);
+                 manager->inhibit_lid_switch_timer_id = 0;
+@@ -3387,6 +3538,12 @@
+ {
+         GsdPowerManager *manager = GSD_POWER_MANAGER (user_data);
+ 
++        if (g_strcmp0 (interface_name, GSD_POWER_DBUS_INTERFACE) == 0 &&
++            g_strcmp0 (method_name, "HandlePowerButton") == 0) {
++                handle_power_button (manager, parameters, invocation);
++                return;
++        }
++
+         /* Check session pointer as a proxy for whether the manager is in the
+            start or stop state */
+         if (manager->session == NULL) {

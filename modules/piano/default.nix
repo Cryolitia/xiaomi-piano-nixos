@@ -19,6 +19,7 @@ in
     ./audio.nix
     ./camera.nix
     ./video.nix
+    ./gnome.nix
     ./fingerprint.nix
     ./sensors.nix
   ];
@@ -44,6 +45,10 @@ in
     };
 
     nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
+
+    # Gunyah makes automatic chassis detection report a VM. GNOME uses the
+    # physical chassis to choose the power-key policy on this tablet.
+    environment.etc."machine-info".text = "CHASSIS=tablet\n";
     assertions = [
       {
         assertion = pkgs.stdenv.hostPlatform.isAarch64;
