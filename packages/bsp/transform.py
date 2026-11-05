@@ -8,12 +8,9 @@ import sys
 
 
 START_SCRIPTS = (
-    "display-start",
     "touch-start",
     "radio-start",
     "adsp-start",
-    "audio-start",
-    "keyboard-start",
 )
 
 
@@ -79,10 +76,6 @@ def install_runtime_scripts(source, debian, installer, adapters):
         original = debian / "rootfs/overlay/usr/lib/piano" / name
         installer.write(name, adapters.adapt(name, original.read_bytes()).decode())
 
-    installer.write(
-        "cpufreq-start",
-        (debian / "rootfs/overlay/usr/lib/piano/cpufreq-start").read_text(),
-    )
     installer.write(
         "touch-input", (source / "linux/userspace/pen/piano-touch-input").read_text()
     )

@@ -8,6 +8,9 @@
 
 let
   storageModules = [
+    # Adreno's SMMU needs GPUCC even when only storage uses the apps SMMU.
+    # Register the supplier first so its consumer cannot time out in initrd.
+    "gpucc_sm8750"
     "arm_smmu"
     "pinctrl_sm8750"
     "qcom_cpucp_mbox"

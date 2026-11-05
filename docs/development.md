@@ -24,7 +24,11 @@ ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目
 
 标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理。只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 
-initrd 用单个服务逐一加载 SMMU、pinctrl、CPUCP mailbox、UFS PHY 和 UFS 驱动，避免 systemd 的黑名单检查与并发模块加载改变次序。stage1 和 stage2 从各自 systemd 的 `80-drivers.rules` 派生规则，只排除 SoC 总线的默认 modalias 加载，保留其他 udev 操作。显示、触摸、无线和 ADSP 按现有板级顺序初始化，普通 modalias 自动加载不能抢先启动这些 DMA 主设备。BSP 适配保留实时 sysfs DMA、时钟及资源检查，不把某次采集的机器状态作为通用硬件事实。当前内核序列只有 MiPPS 用户态传输接口，因此验证配置采用普通 PD 降压充电，不自动启用未经接入的快充认证或直充。
+initrd 用单个服务先加载 GPUCC，再加载 SMMU、pinctrl、CPUCP mailbox、UFS PHY 和 UFS 驱动。Adreno SMMU 依赖 GPUCC 的时钟和电源域，先注册供应者可避免探测超时；逐一调用 kmod 也避免 systemd 的黑名单检查与并发加载改变次序。stage1 和 stage2 从各自 systemd 的 `80-drivers.rules` 派生规则，只排除 SoC 总线的默认 modalias 加载，保留其他 udev 操作。显示、触摸、无线和 ADSP 按现有板级顺序初始化，普通 modalias 自动加载不能抢先启动这些 DMA 主设备。BSP 适配保留实时 sysfs DMA、时钟及资源检查，不把某次采集的机器状态作为通用硬件事实。当前内核序列只有 MiPPS 用户态传输接口，因此验证配置采用普通 PD 降压充电，不自动启用未经接入的快充认证或直充。
+
+显示、音频和键盘直接在 systemd 单元中调用 kmod，不再安装各自的启动脚本。显示先注册 DISPCC、背光和面板，再加载 MSM；只保留 DSI 实际启用的等待，供后续 ADSP 启动使用，不再向 `drivers_probe` 写入设备名。音频通过 `Requires` 依赖 ADSP，保留 DSP DMA 检查，声卡就绪由 `udevadm wait` 等待；ASoC 自行处理组件之间的延迟探测。键盘驱动自行完成上电、固件和 HID 注册，单元在 QUP 检查后加载驱动。CPUCP 和 SCMI cpufreq 已内建，CPU boost 由标准 tmpfiles 规则设置，无需额外服务或轮询。
+
+触摸仍需要常驻的 THP 解码器提供 evdev 事件；ADSP 保留显示接管后的 remoteproc 启动及充电配置；无线保留电源时序、DMA 检查和 BlueZ 接管前的公共地址初始化。USB configfs 与 Type-C 插拔生命周期也仍由现有服务处理。这些步骤没有等效的模块装载配置，不能仅靠删脚本替代。
 
 ## 显示、传感器与无线身份
 
