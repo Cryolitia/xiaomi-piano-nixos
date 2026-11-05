@@ -1,0 +1,170 @@
+Subject: [PATCH] screen-shield: provide an immediate lock for power button handling
+
+Include display power state in accelerator metadata. Add a non-animated
+ScreenSaver lock entry point so a power-button wake cannot be followed by
+a delayed lock fade. Preserve the existing animated Lock method.
+
+diff --git a/data/dbus-interfaces/org.gnome.ScreenSaver.xml b/data/dbus-interfaces/org.gnome.ScreenSaver.xml
+--- a/data/dbus-interfaces/org.gnome.ScreenSaver.xml
++++ b/data/dbus-interfaces/org.gnome.ScreenSaver.xml
+@@ -1,6 +1,7 @@
+ <node>
+   <interface name="org.gnome.ScreenSaver">
+     <method name="Lock"/>
++    <method name="LockImmediately"/>
+     <method name="GetActive">
+       <arg type="b" direction="out" name="active"/>
+     </method>
+diff --git a/js/dbusServices/screensaver/screenSaverService.js b/js/dbusServices/screensaver/screenSaverService.js
+--- a/js/dbusServices/screensaver/screenSaverService.js
++++ b/js/dbusServices/screensaver/screenSaverService.js
+@@ -40,6 +40,15 @@
+         }
+     }
+ 
++    async LockImmediatelyAsync(params, invocation) {
++        try {
++            await this._proxy.LockImmediatelyAsync(...params);
++            invocation.return_value(null);
++        } catch (error) {
++            this._handleError(invocation, error);
++        }
++    }
++
+     async GetActiveAsync(params, invocation) {
+         try {
+             const res = await this._proxy.GetActiveAsync(...params);
+diff --git a/js/ui/screenShield.js b/js/ui/screenShield.js
+--- a/js/ui/screenShield.js
++++ b/js/ui/screenShield.js
+@@ -121,6 +121,8 @@
+         this._activationTime = 0;
+         this._becameActiveId = 0;
+         this._lockTimeoutId = 0;
++        this._lockScreenFadeId = 0;
++        this._deactivating = false;
+ 
+         // The "long" lightbox is used for the longer (20 seconds) fade from session
+         // to idle status, the "short" is used for quickly fading to black when locking
+@@ -360,6 +362,11 @@
+     }
+ 
+     _hidePointerUntilMotion() {
++        if (this._motionId) {
++            this._hidePointer();
++            return;
++        }
++
+         const eventActor = this._lockDialogGroup;
+         this._motionId = eventActor.connect('captured-event', (_, event) => {
+             if (event.type() === Clutter.EventType.MOTION)
+@@ -472,6 +479,10 @@
+     }
+ 
+     _lockScreenShown(params) {
++        if (this._lockScreenFadeId !== 0) {
++            GLib.source_remove(this._lockScreenFadeId);
++            this._lockScreenFadeId = 0;
++        }
+         this._hidePointerUntilMotion();
+ 
+         this._lockScreenState = MessageTray.State.SHOWN;
+@@ -479,10 +490,11 @@
+         if (params.fadeToBlack && params.animateFade) {
+             // Take a beat
+ 
+-            const id = GLib.timeout_add_once(GLib.PRIORITY_DEFAULT, MANUAL_FADE_TIME, () => {
++            this._lockScreenFadeId = GLib.timeout_add_once(GLib.PRIORITY_DEFAULT, MANUAL_FADE_TIME, () => {
++                this._lockScreenFadeId = 0;
+                 this._activateFade(this._shortLightbox, MANUAL_FADE_TIME);
+             });
+-            GLib.Source.set_name_by_id(id, '[gnome-shell] this._activateFade');
++            GLib.Source.set_name_by_id(this._lockScreenFadeId, '[gnome-shell] this._activateFade');
+         } else {
+             if (params.fadeToBlack)
+                 this._activateFade(this._shortLightbox, 0);
+@@ -513,6 +525,7 @@
+     }
+ 
+     deactivate(animate) {
++        this._deactivating = true;
+         if (this._dialog)
+             this._dialog.finish(() => this._continueDeactivate(animate));
+         else
+@@ -537,6 +550,7 @@
+ 
+             this._activationTime = 0;
+             this._setActive(false);
++            this._deactivating = false;
+             return;
+         }
+ 
+@@ -581,6 +595,7 @@
+         this._setActive(false);
+         this._setLocked(false);
+         global.set_runtime_state(LOCKED_STATE_STR, null);
++        this._deactivating = false;
+     }
+ 
+     activate(animate) {
+@@ -659,6 +674,23 @@
+         this._setLocked(lock);
+     }
+ 
++    lockImmediately() {
++        if (this._deactivating || this._lockSettings.get_boolean(DISABLE_LOCK_KEY))
++            return false;
++
++        this.lock(false);
++        if (!this.locked || !this._dialog || !this._grab || !this.actor.visible)
++            return false;
++
++        // activate() does not reset a shield that is already showing.
++        // Finish that transition too, and cancel its delayed fade.
++        this._lockDialogGroup.remove_all_transitions();
++        this._lockDialogGroup.translation_y = 0;
++        this._lockScreenGroup.show();
++        this._lockScreenShown({fadeToBlack: true, animateFade: false});
++        return this.active;
++    }
++
+     // If the previous shell crashed, and gnome-session restarted us, then re-lock
+     lockIfWasLocked() {
+         if (!this._settings.get_boolean(LOCK_ENABLED_KEY))
+diff --git a/js/ui/shellDBus.js b/js/ui/shellDBus.js
+--- a/js/ui/shellDBus.js
++++ b/js/ui/shellDBus.js
+@@ -284,6 +284,7 @@
+         if (!destination)
+             return;
+ 
++        const powerSaveMode = global.backend.get_monitor_manager().get_power_save_mode();
+         const connection = this._dbusImpl.get_connection();
+         const info = this._dbusImpl.get_info();
+ 
+@@ -293,6 +294,7 @@
+         const params = {
+             'timestamp': GLib.Variant.new('u', timestamp),
+             'action-mode': GLib.Variant.new('u', Main.actionMode),
++            'power-save-mode': GLib.Variant.new('i', powerSaveMode),
+             'activation-token': GLib.Variant.new('s', token),
+         };
+ 
+@@ -545,6 +547,17 @@
+         this._screenShield.lock(true);
+     }
+ 
++    LockImmediatelyAsync(_parameters, invocation) {
++        // The power-button action must not leave a delayed fade that can
++        // blank the screen after a subsequent wake-up request.
++        if (!this._screenShield.lockImmediately()) {
++            invocation.return_error_literal(
++                Gio.DBusError, Gio.DBusError.FAILED, 'Could not lock the screen');
++            return;
++        }
++        invocation.return_value(null);
++    }
++
+     SetActive(active) {
+         if (active)
+             this._screenShield.activate(true);
