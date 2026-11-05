@@ -84,12 +84,25 @@
 
           module-interface =
             assert !(cfg.fileSystems ? "/");
+            assert !(hardwareOnly.options ? piano.image);
+            assert !(hardwareOnly.options ? sdImage);
+            assert !(cfg.systemd.services ? piano-register-store);
+            assert !(cfg.systemd.services ? register-nix-paths);
             assert !cfg.services.desktopManager.gnome.enable;
             assert !cfg.services.displayManager.gdm.enable;
             assert !cfg.boot.loader.external.enable;
             assert configurations.piano-gnome.config.hardware.xiaomi.piano.memoryGiB == 16;
             assert configurations.piano-24gb-gnome.config.hardware.xiaomi.piano.memoryGiB == 24;
-            pkgs.writeText "piano-module-interface" "Hardware import keeps disk, desktop and bootloader policy separate.\n";
+            assert lib.all (
+              configuration:
+              let
+                services = configuration.config.systemd.services;
+              in
+              services ? register-nix-paths
+              && !(services ? piano-register-store)
+              && services.register-nix-paths.unitConfig.ConditionPathExists == "/nix-path-registration"
+            ) (lib.attrValues configurations);
+            pkgs.writeText "piano-module-interface" "Hardware import keeps image services, disk, desktop and bootloader policy separate.\n";
         }
       );
     };

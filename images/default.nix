@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  modulesPath,
   ...
 }:
 let
@@ -127,42 +128,15 @@ in
       };
     };
 
-    # Import the image registration once before the Nix daemon starts.
-    systemd.services.piano-register-store = {
-      description = "Register the Nix store from the initial Piano image";
-      wantedBy = [ "sysinit.target" ];
-      after = [ "local-fs.target" ];
-      before = [
-        "sysinit.target"
-        "nix-daemon.service"
-        "nix-daemon.socket"
-      ];
-      unitConfig = {
-        DefaultDependencies = false;
-        ConditionPathExists = "/nix-path-registration";
-        RequiresMountsFor = [
-          "/nix/store"
-          "/nix/var/nix"
-        ];
-      };
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-      path = [
-        config.nix.package
-        pkgs.coreutils
-      ];
-      script = ''
-        nix-store --load-db < /nix-path-registration
-
-        touch /etc/NIXOS
-        nix-env -p /nix/var/nix/profiles/system --set /run/current-system
-
-        # Removing the marker makes subsequent boots leave the live database alone.
-        rm -f /nix-path-registration
-      '';
-    };
+    # Select nixpkgs' first-boot unit without importing the SD image layout.
+    systemd.services.register-nix-paths =
+      (import (modulesPath + "/installer/sd-card/sd-image.nix") {
+        inherit lib pkgs;
+        config = {
+          nix.package = config.nix.package;
+          sdImage.nixPathRegistrationFile = "/nix-path-registration";
+        };
+      }).config.systemd.services.register-nix-paths;
 
     system.build.pianoImage = image;
   };
