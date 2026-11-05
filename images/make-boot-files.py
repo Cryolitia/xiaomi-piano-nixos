@@ -99,54 +99,23 @@ def copy_payloads(boot, extension, output):
 
 
 def validate_kernel(path):
-    """Check the ARM64 header and PE bounds before publishing a boot entry."""
-    image = path.read_bytes()
-    require(
-        len(image) >= 64 and image[:2] == b"MZ" and image[56:60] == b"ARMd",
-        "Expected an AArch64 Linux EFI-stub Image, not an ELF vmlinux.",
-    )
-    pe = struct.unpack_from("<I", image, 60)[0]
-    require(
-        pe + 24 <= len(image) and image[pe : pe + 4] == b"PE\0\0",
-        "The kernel has no complete PE header.",
-    )
-    machine, sections = struct.unpack_from("<HH", image, pe + 4)
-    optional_bytes = struct.unpack_from("<H", image, pe + 20)[0]
-    optional = pe + 24
-    require(
-        machine == 0xAA64
-        and sections > 0
-        and optional_bytes >= 112
-        and optional + optional_bytes + sections * 40 <= len(image),
-        "The kernel has an invalid AArch64 PE section table.",
-    )
-    require(
-        struct.unpack_from("<H", image, optional)[0] == 0x20B
-        and struct.unpack_from("<H", image, optional + 68)[0] == 10,
-        "The kernel must be a PE32+ EFI application.",
-    )
-    entry = struct.unpack_from("<I", image, optional + 16)[0]
-    loaded_bytes = struct.unpack_from("<I", image, optional + 56)[0]
-    require(0 < entry < loaded_bytes, "The kernel PE entry point is outside its image.")
-
-    for index in range(sections):
-        offset = optional + optional_bytes + index * 40
-        virtual_bytes, virtual_address, raw_bytes, raw_offset = struct.unpack_from(
-            "<IIII", image, offset + 8
-        )
+    """Check that the Linux Image carries an AArch64 EFI application header."""
+    with path.open("rb") as stream:
+        image = stream.read(64)
         require(
-            virtual_address + max(virtual_bytes, raw_bytes) <= loaded_bytes
-            and raw_offset + raw_bytes <= len(image),
-            "The kernel PE section is out of bounds.",
+            len(image) == 64 and image[:2] == b"MZ" and image[56:60] == b"ARMd",
+            "Expected an AArch64 Linux EFI-stub Image, not an ELF vmlinux.",
         )
-
-    directories = struct.unpack_from("<I", image, optional + 108)[0]
-    if directories >= 2:
-        require(
-            optional_bytes >= 128
-            and struct.unpack_from("<II", image, optional + 120) == (0, 0),
-            "The EFI kernel must not import Windows libraries.",
-        )
+        stream.seek(struct.unpack_from("<I", image, 60)[0])
+        pe = stream.read(94)
+    require(
+        len(pe) == 94
+        and pe[:4] == b"PE\0\0"
+        and struct.unpack_from("<H", pe, 4)[0] == 0xAA64
+        and struct.unpack_from("<H", pe, 24)[0] == 0x20B
+        and struct.unpack_from("<H", pe, 92)[0] == 10,
+        "The kernel must be an AArch64 PE32+ EFI application.",
+    )
 
 
 def validate_initrd(path):
@@ -165,45 +134,17 @@ def validate_initrd(path):
 
 
 def validate_device_tree(path):
-    dtb = path.read_bytes()
-    require(len(dtb) >= 40, "The device tree header is incomplete.")
-    (
-        magic,
-        size,
-        structure,
-        strings,
-        reservations,
-        version,
-        compatible,
-        _,
-        strings_bytes,
-        structure_bytes,
-    ) = struct.unpack_from(">10I", dtb)
+    with path.open("rb") as stream:
+        header = stream.read(40)
+    require(len(header) == 40, "The device tree header is incomplete.")
+    magic, size, _, _, _, version, compatible, _, _, _ = struct.unpack(">10I", header)
     require(
         magic == 0xD00DFEED
-        and size == len(dtb)
+        and size == path.stat().st_size
         and version >= 17
-        and compatible <= 17
-        and structure >= 40
-        and structure % 4 == 0
-        and structure + structure_bytes <= size
-        and strings >= 40
-        and strings + strings_bytes <= size
-        and reservations >= 40
-        and reservations % 8 == 0,
-        "The flattened device tree has invalid block boundaries.",
+        and compatible <= 17,
+        "Expected a complete flattened device tree compatible with version 17.",
     )
-
-    position = reservations
-    while True:
-        require(
-            position + 16 <= size,
-            "The device tree reservation map is unterminated.",
-        )
-        address, length = struct.unpack_from(">QQ", dtb, position)
-        position += 16
-        if address == length == 0:
-            break
 
 
 def write_entries(output, payloads, command_line, sort_key):

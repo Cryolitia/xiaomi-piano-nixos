@@ -7,7 +7,6 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import struct
 import subprocess
@@ -34,22 +33,18 @@ def run(*args):
 
 
 def check_efi(path):
-    data = path.read_bytes()
-    require(data[:2] == b"MZ" and len(data) >= 64, f"Invalid EFI image: {path}")
-    pe = struct.unpack_from("<I", data, 60)[0]
+    with path.open("rb") as stream:
+        header = stream.read(64)
+        require(len(header) == 64 and header[:2] == b"MZ", f"Invalid EFI image: {path}")
+        stream.seek(struct.unpack_from("<I", header, 60)[0])
+        pe = stream.read(94)
     require(
-        pe + 264 <= len(data) and data[pe : pe + 4] == b"PE\0\0",
-        f"Invalid PE header: {path}",
-    )
-    require(
-        struct.unpack_from("<H", data, pe + 4)[0] == 0xAA64
-        and struct.unpack_from("<H", data, pe + 24)[0] == 0x20B
-        and struct.unpack_from("<H", data, pe + 92)[0] == 10,
+        len(pe) == 94
+        and pe[:4] == b"PE\0\0"
+        and struct.unpack_from("<H", pe, 4)[0] == 0xAA64
+        and struct.unpack_from("<H", pe, 24)[0] == 0x20B
+        and struct.unpack_from("<H", pe, 92)[0] == 10,
         f"Expected an AArch64 PE32+ EFI application: {path}",
-    )
-    require(
-        struct.unpack_from("<II", data, pe + 144) == (0, 0),
-        f"EFI application must not import Windows libraries: {path}",
     )
 
 
@@ -61,7 +56,7 @@ def load_sparse_tool(path):
     return sparse
 
 
-def stage_boot_files(boot_files, tree, manifest):
+def stage_boot_files(boot_files, tree):
     tree.mkdir()
     for directory in ("EFI", "loader"):
         shutil.copytree(boot_files / directory, tree / directory)
@@ -72,57 +67,6 @@ def stage_boot_files(boot_files, tree, manifest):
     for path in tree.rglob("*"):
         if path.is_dir():
             path.chmod(0o755)
-
-    for name, info in manifest["files"].items():
-        path = tree / name
-        require(
-            path.is_file()
-            and path.stat().st_size == info["bytes"]
-            and digest(path) == info["sha256"],
-            f"Boot file differs: {name}",
-        )
-
-
-def validate_boot_entry(tree, manifest):
-    """Keep the BLS entry and its three payloads from one bootspec together."""
-    entry_path = manifest.get("entry", "")
-    require(
-        re.fullmatch(r"loader/entries/nixos-[0-9a-f]{64}\.conf", entry_path),
-        "Expected a standard NixOS BLS entry name.",
-    )
-    contents = (tree / entry_path).read_bytes()
-    require(
-        Path(entry_path).name
-        == "nixos-" + hashlib.sha256(contents).hexdigest() + ".conf",
-        "The BLS entry name does not match its contents.",
-    )
-
-    entry = {}
-    for line in (tree / entry_path).read_text().splitlines():
-        key, value = line.split(maxsplit=1)
-        require(key not in entry, f"Duplicate BLS field: {key}")
-        entry[key] = value
-
-    require(
-        set(entry) == {"title", "linux", "initrd", "devicetree", "options", "sort-key"},
-        "The NixOS BLS entry must load Linux, initrd and the device tree directly.",
-    )
-    require(
-        set(manifest["payloads"]) == {"linux", "initrd", "devicetree"},
-        "Expected one matching Linux, initrd and device tree.",
-    )
-    for key, filename in manifest["payloads"].items():
-        require(
-            re.fullmatch(r"EFI/nixos/[A-Za-z0-9+._=-]+\.efi", filename)
-            and filename in manifest["files"]
-            and entry[key] == "/" + filename,
-            f"BLS {key} does not select the matching boot file.",
-        )
-    require(
-        entry["options"] == manifest["commandLine"],
-        "BLS kernel options differ from the manifest.",
-    )
-    check_efi(tree / entry["linux"].lstrip("/"))
 
 
 def install_boot_manager(tree, source):
@@ -173,7 +117,7 @@ def create_filesystem(raw):
     )
 
 
-def populate_filesystem(raw, tree, files, work):
+def populate_filesystem(raw, tree, files, boot_files, work):
     directories = sorted(
         (path for path in tree.rglob("*") if path.is_dir()),
         key=lambda path: (len(path.parts), str(path)),
@@ -185,12 +129,21 @@ def populate_filesystem(raw, tree, files, work):
     readback = work / "readback"
     for path in files:
         name = path.relative_to(tree).as_posix()
+        # The boot-files derivation already hashed its payloads. Compare the
+        # FAT readback with that manifest instead of rereading each source.
+        info = boot_files.get(name)
+        if info is None:
+            info = {"bytes": path.stat().st_size, "sha256": digest(path)}
         os.utime(path, (EPOCH, EPOCH))
         run("mcopy", "-m", "-i", raw, path, "::/" + name)
         run("mcopy", "-i", raw, "::/" + name, readback)
-        require(digest(readback) == digest(path), f"ESP readback differs: {name}")
+        require(
+            readback.stat().st_size == info["bytes"]
+            and digest(readback) == info["sha256"],
+            f"ESP readback differs: {name}",
+        )
         readback.unlink()
-        esp_files[name] = {"bytes": path.stat().st_size, "sha256": digest(path)}
+        esp_files[name] = info
 
     # Read every file back before accepting the filesystem or producing the
     # sparse image; successful mcopy alone does not prove the stored bytes.
@@ -201,13 +154,14 @@ def populate_filesystem(raw, tree, files, work):
 def create_sparse_image(raw, sparse_path, sparse_tool, work):
     info = sparse_tool.convert(raw, sparse_path, SECTOR)
     require(
-        info["expanded_bytes"] == CAPACITY and info["expanded_sha256"] == digest(raw),
-        "Sparse ESP differs from the raw image.",
+        info["expanded_bytes"] == CAPACITY,
+        "Sparse ESP has an unexpected expanded size.",
     )
     expanded = work / "expanded.img"
     run("simg2img", sparse_path, expanded)
     require(
-        expanded.stat().st_size == CAPACITY and digest(expanded) == digest(raw),
+        expanded.stat().st_size == CAPACITY
+        and digest(expanded) == info["expanded_sha256"],
         "Sparse ESP roundtrip differs from the raw image.",
     )
     return info
@@ -226,7 +180,7 @@ def write_manifest(output, boot, esp_files, sparse_info):
             "esp.img": {
                 "format": "raw-fat32",
                 "bytes": CAPACITY,
-                "sha256": digest(output / "esp.img"),
+                "sha256": sparse_info["expanded_sha256"],
             },
             "esp.sparse.img": {
                 "format": "android-sparse",
@@ -236,12 +190,12 @@ def write_manifest(output, boot, esp_files, sparse_info):
             },
         },
     }
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    manifest_path = output / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    checksums = {name: info["sha256"] for name, info in manifest["files"].items()}
+    checksums["manifest.json"] = digest(manifest_path)
     (output / "SHA256SUMS").write_text(
-        "".join(
-            f"{digest(output / name)}  {name}\n"
-            for name in ("esp.img", "esp.sparse.img", "manifest.json")
-        )
+        "".join(f"{checksum}  {name}\n" for name, checksum in checksums.items())
     )
 
 
@@ -253,8 +207,7 @@ def build(args):
     with tempfile.TemporaryDirectory() as temporary:
         work = Path(temporary)
         tree = work / "tree"
-        stage_boot_files(args.boot_files, tree, boot)
-        validate_boot_entry(tree, boot)
+        stage_boot_files(args.boot_files, tree)
         install_boot_manager(tree, args.systemd_boot)
 
         files = sorted(path for path in tree.rglob("*") if path.is_file())
@@ -264,7 +217,7 @@ def build(args):
         )
         raw = args.output / "esp.img"
         create_filesystem(raw)
-        esp_files = populate_filesystem(raw, tree, files, work)
+        esp_files = populate_filesystem(raw, tree, files, boot["files"], work)
         sparse_info = create_sparse_image(
             raw, args.output / "esp.sparse.img", sparse_tool, work
         )

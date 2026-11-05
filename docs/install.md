@@ -102,10 +102,3 @@ ssh nixos@10.42.0.2 'sudo journalctl --boot --follow --output=short-monotonic --
 内核启用 ath12k 调试接口、trace 能力和固件崩溃转储，默认记录 PCI、QMI、固件启动、MAC 和 WMI，不自动开启逐包 trace。固件生成的 `devcoredump` 会保存到 `/var/lib/piano-diagnostics/firmware/`；Linux 日志持久化到 journal，每秒同步一次，磁盘占用上限为 256 MiB。
 
 USB 串口在控制器和主机枚举完成后才开始传输；其缓冲和工作队列可能在整机硬锁死时停止。USB 网络建立后，可另外执行 `ssh nixos@10.42.0.2 'sudo dmesg' > piano-dmesg.txt` 补采内核环中仍保留的启动记录。
-
-
-## 后续更新
-
-验证配置启用 NixOS 自带的 systemd-boot 模块。在 NixOS 内使用 `sudo nixos-rebuild boot --flake .#piano-gnome` 更新下次启动的系统；24 GB 改装机使用 `.#piano-24gb-gnome`。命令需要在本项目目录执行。更新前会核对 `/boot` 与 `/` 是同一设备上的 SunUEFI 独立分区；随后由标准模块安装匹配的内核、initrd、设备树和启动项，并更新 systemd-boot。默认保留最近五代启动项，不写 EFI 启动变量、UEFI 固件或 Android 启动分区。
-
-`boot-files/` 是离线安装所用的配套 Linux 启动文件，包含标准 `loader/entries/nixos-*.conf` 和平铺在 `EFI/nixos/` 下的载荷。通常直接在 NixOS 内更新即可。需要恢复系统时，使用同一次构建的完整 ESP 和 root 镜像，或恢复此前配对保存的两份分区备份。

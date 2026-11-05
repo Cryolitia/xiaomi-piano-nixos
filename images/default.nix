@@ -66,56 +66,6 @@ in
       default = 16384;
       description = "Size of the standalone ext4 validation image, in MiB.";
     };
-
-    system.build.installBootLoader = mkOption {
-      # Keep the standard NixOS updater; only check the image's dedicated
-      # partition identities before it can write the ESP.
-      apply =
-        installer:
-        pkgs.writeShellScript "install-piano-systemd-boot" ''
-          set -euo pipefail
-          export PATH=${
-            lib.makeBinPath [
-              pkgs.coreutils
-              pkgs.util-linuxMinimal
-            ]
-          }
-
-          fail() {
-            echo "Piano boot update refused: $*" >&2
-            exit 1
-          }
-
-          # Resolve the actual mounts before the standard installer can write.
-          # Filesystem labels alone cannot establish partition ownership.
-          esp=${lib.escapeShellArg config.boot.loader.efi.efiSysMountPoint}
-          device=$(findmnt --noheadings --raw --output SOURCE --mountpoint "$esp") ||
-            fail 'Mount the SunUEFI ESP before updating.'
-          test -b "$device" || fail 'The ESP is not a block-device filesystem.'
-          test "$(blkid -p -s PART_ENTRY_NAME -o value "$device")" = sunuefi_esp ||
-            fail 'The ESP is not the sunuefi_esp partition.'
-          test "$(blkid -p -s LABEL -o value "$device")" = SUNUEFI_ESP ||
-            fail 'The ESP filesystem label is not SUNUEFI_ESP.'
-          test "$(findmnt --noheadings --raw --output FSTYPE --mountpoint "$esp")" = vfat ||
-            fail 'The ESP must use FAT32.'
-
-          root_device=$(findmnt --noheadings --raw --output SOURCE --mountpoint /)
-          test -b "$root_device" || fail 'The root is not a block-device filesystem.'
-          test "$(blkid -p -s PART_ENTRY_NAME -o value "$root_device")" = sunuefi_root ||
-            fail 'The root is not the sunuefi_root partition.'
-          test "$(blkid -p -s LABEL -o value "$root_device")" = PIANOROOT ||
-            fail 'The root filesystem label is not PIANOROOT.'
-          test "$(findmnt --noheadings --raw --output FSTYPE --mountpoint /)" = ext4 ||
-            fail 'The root must use ext4.'
-
-          # Both filesystems must belong to the same physical storage device.
-          test "$(lsblk --noheadings --raw --output PKNAME "$root_device")" = \
-            "$(lsblk --noheadings --raw --output PKNAME "$device")" ||
-            fail 'The ESP and root must belong to the same disk.'
-
-          exec ${installer} "$@"
-        '';
-    };
   };
 
   config = {

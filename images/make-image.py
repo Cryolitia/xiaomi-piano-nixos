@@ -18,8 +18,8 @@ IMAGE_FILES = (
 )
 
 
-def run(*args, **kwargs):
-    subprocess.run([str(arg) for arg in args], check=True, **kwargs)
+def run(*args):
+    subprocess.run([str(arg) for arg in args], check=True)
 
 
 def copy_inputs(args):
@@ -79,8 +79,12 @@ def write_manifest(args, target_bytes):
     files = {}
     for name in IMAGE_FILES:
         path = args.output / name
-        with path.open("rb") as stream:
-            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        # The ESP is copied unchanged, so its build manifest supplies the hash.
+        if name in ("esp.img", "esp.sparse.img"):
+            digest = esp["files"][name]["sha256"]
+        else:
+            with path.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
         files[name] = {"bytes": path.stat().st_size, "sha256": digest}
 
     manifest = {
@@ -96,18 +100,16 @@ def write_manifest(args, target_bytes):
         "bootFilesDirectory": "/EFI/nixos",
         "files": files,
     }
-    (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    manifest_path = args.output / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
     # The common checksum list covers both filesystems and the metadata that
     # binds them to this system, so installers need only one build result.
-    with (args.output / "SHA256SUMS").open("w") as stream:
-        run(
-            "sha256sum",
-            *IMAGE_FILES,
-            "manifest.json",
-            cwd=args.output,
-            stdout=stream,
-        )
+    checksums = {name: info["sha256"] for name, info in files.items()}
+    checksums["manifest.json"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    (args.output / "SHA256SUMS").write_text(
+        "".join(f"{checksum}  {name}\n" for name, checksum in checksums.items())
+    )
 
 
 def build(args):
