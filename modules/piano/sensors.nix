@@ -3,11 +3,13 @@
   lib,
   pkgs,
   pianoPackages,
+  utils,
   ...
 }:
 
 let
   sensors = pianoPackages.sensors;
+  fastrpcDevice = "${utils.escapeSystemdPath "/dev/fastrpc-adsp-secure"}.device";
 in
 {
   # SSC is a backend of standard SensorProxy; Mutter remains responsible
@@ -51,35 +53,20 @@ in
 
     adsprpcd-sensorspd = {
       description = "Piano ADSP sensor service";
-      wantedBy = [ "multi-user.target" ];
+      wantedBy = [ fastrpcDevice ];
       requires = [
         "piano-adsp.service"
         "piano-sensors-import.service"
+        fastrpcDevice
       ];
       after = [
         "piano-adsp.service"
         "piano-sensors-import.service"
+        fastrpcDevice
       ];
       before = [ "iio-sensor-proxy.service" ];
-      path = [
-        pkgs.kmod
-        pkgs.coreutils
-      ];
-      preStart = ''
-        modprobe socinfo
-        modprobe fastrpc
-
-        # The remoteproc publishes FastRPC asynchronously after ADSP starts.
-        for attempt in $(seq 1 60); do
-          if test -e /dev/fastrpc-adsp-secure; then
-            exit 0
-          fi
-          sleep 1
-        done
-
-        echo "Piano ADSP FastRPC device did not appear" >&2
-        exit 1
-      '';
+      # SensorProxy's udev rule tags FastRPC for systemd. The device starts
+      # this service once ADSP publishes it; normal aliases load the drivers.
       serviceConfig = {
         Type = "exec";
         ExecStart = "${sensors.fastrpc}/bin/adsprpcd sensorspd";
