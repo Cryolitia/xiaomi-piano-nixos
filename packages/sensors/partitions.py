@@ -12,7 +12,6 @@ from pathlib import Path
 import re
 import stat
 import subprocess
-import sys
 
 from liblp import GetPartitionName, LP_SECTOR_SIZE, LP_TARGET_TYPE_LINEAR, ReadMetadata
 
@@ -150,9 +149,4 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        main()
-    # liblp also reports malformed metadata with ordinary Exception.
-    except Exception as error:
-        print(f'piano-sensors: {error}', file=sys.stderr)
-        sys.exit(1)
+    main()
