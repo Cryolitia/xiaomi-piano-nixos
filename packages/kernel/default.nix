@@ -65,6 +65,7 @@ let
       ./iommu-adreno-defer-default-domain.patch
       ./iommu-media-default-domain.patch
       ./bluetooth-qca-defer-power-sequencer.patch
+      ./nanosic-tablet-mode-switch.patch
       ./cpufreq-scmi-piano-boost-default.patch
       ./rpmsg-channel-modalias-fallback.patch
       ./pcie-qcom-power-before-phy.patch

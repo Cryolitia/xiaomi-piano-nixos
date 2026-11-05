@@ -1,0 +1,73 @@
+Subject: [PATCH] HID: nanosic: report tablet mode from keyboard attachment
+
+Expose a persistent input switch on the keyboard MCU so desktop software
+can distinguish the tablet from an attached keyboard cover. Initialize the
+switch before registration and update it from the existing attachment
+state transitions. The switch remains available while both detachable HID
+devices are absent.
+
+Exclude this output device from the Hall handler, whose events inhibit
+keyboard input. Keep the external Hall switch behavior unchanged.
+
+Allocate the managed input device before registering the IRQ so it is
+ready for the first attachment report and is released after the IRQ.
+
+---
+--- a/drivers/hid/hid-nanosic-wn8030.c
++++ b/drivers/hid/hid-nanosic-wn8030.c
+@@ -77,6 +77,7 @@
+ 	struct i2c_client *client;
+ 	struct hid_device *hid_keyboard;
+ 	struct hid_device *hid_touchpad;
++	struct input_dev *mode_input;
+ 
+ 	struct gpio_desc *status_gpio;
+ 	struct gpio_desc *sleep_gpio;
+@@ -1061,6 +1062,10 @@
+ 		if (notify_plugin) {
+ 			u16 hinge_flags;
+ 
++			input_report_switch(nanosic->mode_input, SW_TABLET_MODE,
++					    !plugin_attached);
++			input_sync(nanosic->mode_input);
++
+ 			hinge_flags = plugin_attached ?
+ 				NANOSIC_HINGE_SAMPLE_ATTACHED : 0;
+ 			nanosic_wn8030_publish_hinge(nanosic, hinge_flags,
+@@ -1581,6 +1586,10 @@
+ 	struct input_handle *handle = &nanosic->hall_handle;
+ 	int ret;
+ 
++	/* Attachment state is an output, not a keyboard-inhibit input. */
++	if (dev == nanosic->mode_input)
++		return -ENODEV;
++
+ 	if (handle->dev)
+ 		return -EEXIST;
+ 
+@@ -1961,6 +1970,25 @@
+ 	ret = devm_led_classdev_register(nanosic->dev, &nanosic->kbd_backlight_led);
+ 	if (ret)
+ 		goto err_micmute_led;
++
++	/* Keep the mode switch present when the detachable HID devices leave. */
++	nanosic->mode_input = devm_input_allocate_device(nanosic->dev);
++	if (!nanosic->mode_input) {
++		ret = -ENOMEM;
++		goto err_kbd_backlight_led;
++	}
++
++	nanosic->mode_input->name = "Nanosic WN8030 tablet mode";
++	nanosic->mode_input->id.bustype = BUS_I2C;
++	input_set_capability(nanosic->mode_input, EV_SW, SW_TABLET_MODE);
++	input_report_switch(nanosic->mode_input, SW_TABLET_MODE,
++			    !nanosic->keyboard_attached);
++
++	ret = input_register_device(nanosic->mode_input);
++	if (ret) {
++		dev_err(nanosic->dev, "failed to register tablet mode switch\n");
++		goto err_kbd_backlight_led;
++	}
+ 
+ 	ret = input_register_handler(&nanosic->hall_handler);
+ 	if (ret) {
