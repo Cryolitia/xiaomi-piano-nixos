@@ -69,6 +69,7 @@ let
       ./cpufreq-scmi-piano-boost-default.patch
       ./rpmsg-channel-modalias-fallback.patch
       ./pcie-qcom-power-before-phy.patch
+      ./qmp-pcie-honor-skip-bcr.patch
     ];
     postPatch = ''
       ${buildPackages.python3.interpreter} ${./config.py} . ${kernelInputs}
