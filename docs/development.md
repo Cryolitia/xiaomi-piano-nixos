@@ -42,7 +42,7 @@ FFmpeg 的硬件编解码补丁通过设备模块的 nixpkgs overlay 应用于 F
 
 传感器使用 FastRPC、libssc 和标准 SensorProxy。导入程序读取 GPT 活动槽位，通过 liblp 校验 super 元数据，再建立只读 ODM/vendor 映射、只读挂载 persist 并复制同机配置与校准数据。服务按 ADSP、配置导入、sensors PD、SensorProxy 的顺序启动。`hardware.sensor.iio.enable = false` 关闭整条 SSC 服务链；板载 SSC 不使用内核未提供的 `hid-sensor-hub`，只对该 initrd 模块作逐项排除，其余缺失模块仍会阻止构建。
 
-GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程序。自动旋转需要未锁定方向、有效加速度计和内置屏幕，并遵循 GNOME 的触摸模式策略：没有 tablet-mode switch 时，枚举到鼠标或触控板会退出触摸模式。普通键盘不触发这一限制。
+GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程序。自动旋转需要未锁定方向、有效加速度计和内置屏幕，并遵循 GNOME 的触摸模式策略：Nanosic 键盘 MCU 的持久输入设备把 `keyboard_attached` 转为标准 `SW_TABLET_MODE`，取下键盘为平板模式，装回后退出。键盘和触控板的 HID 设备移除时，这个模式开关仍保留。
 
 指纹模块注册 QTEE/UIO 控制接口，提供 `piano-fingerprint-ctl` 的现有初始化和事件诊断命令。签名 TA 与模型按清单校验，供客户端读取的副本保留未压缩形式，不改变其他内核固件的压缩策略。GNOME 指纹录入和解锁尚未接入：Piano 的 `gfpia` 需要真实 HAT 验签及 QTEE 协议支持，现有面向旧 QSEECOM 的 Goodix libfprint 后端不能直接使用。后续还需 Linux 独立的 Gatekeeper/HAT 签发、FTS 文件服务隔离和完整录入、匹配、保存、取消流程；给 TA 传入 Linux 目录本身不能证明存储已隔离。初始化也有持久化请求，因此原生客户端命令不能当作严格只读采集。[参考后端及协议研究](https://github.com/wrobelda/goodix-fp-spi-linux)
 
