@@ -70,6 +70,7 @@ let
       ./rpmsg-channel-modalias-fallback.patch
       ./pcie-qcom-power-before-phy.patch
       ./qmp-pcie-honor-skip-bcr.patch
+      ./pmic-glink-altmode-freezable.patch
     ];
     postPatch = ''
       ${buildPackages.python3.interpreter} ${./config.py} . ${kernelInputs}
