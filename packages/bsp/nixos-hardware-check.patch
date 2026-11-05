@@ -1,0 +1,105 @@
+NixOS stage 1 validates the root filesystem. Keep the board and booted kernel
+module checks at the hardware entry; preserve all live DMA and clock checks.
+
+--- a/linux/userspace/piano-ram-hardware-prepare
++++ b/linux/userspace/piano-ram-hardware-prepare
+@@ -102,60 +102,17 @@
+     return result
+ 
+ 
+-def require_ram(proc=Path('/proc'), run=Path('/run')):
+-    words = (proc / 'cmdline').read_text().split()
+-    if any(word.startswith('root=') for word in words):
+-        raise Refused('block-root command line is forbidden for the RAM-root hardware entry')
+-    modes = [word[11:] for word in words if word.startswith('piano.root=')]
+-    roots = [line.split() for line in (proc / 'mounts').read_text().splitlines()
+-             if len(line.split()) >= 3 and line.split()[1] == '/']
+-    if len(roots) != 1 or len(modes) != 1:
+-        raise Refused('root mode or actual root mount is ambiguous')
+-    if (run / 'piano-root-mode').read_text().strip() != modes[0]:
+-        raise Refused('bootstrapped root mode differs from kernel policy')
+-    if modes == ['ram']:
+-        if roots[0][2] not in ('tmpfs', 'rootfs', 'ramfs'):
+-            raise Refused('actual root is not RAM-backed')
+-    else:
+-        policy = json.loads(Path('/etc/piano/root-policy.json').read_text())
+-        label_mode = policy.get('mode') == 'label'
+-        partuuid = policy.get('root_partuuid', '')
+-        if label_mode:
+-            if (policy.get('root_label') != 'PIANOROOT'
+-                    or policy.get('root_partlabel') != 'sunuefi_root'
+-                    or modes != ['LABEL=PIANOROOT'] or roots[0][2] != 'ext4'):
+-                raise Refused('root is not the dedicated labelled Linux partition')
+-        elif (not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', partuuid)
+-                or modes != ['PARTUUID=' + partuuid] or roots[0][2] != 'ext4'):
+-            raise Refused('root is not the explicitly configured Linux partition')
+-        device = (run / 'piano-root-device').read_text().strip()
+-        if not re.fullmatch(r'/dev/sd[a-z]+[0-9]+', device):
+-            raise Refused('unexpected Linux root device')
+-        info = os.stat(device)
+-        if not stat.S_ISBLK(info.st_mode) or info.st_rdev != os.stat('/').st_dev:
+-            raise Refused('configured device is not the mounted root')
+-        if label_mode:
+-            command = ['/usr/sbin/blkid', '-p', '-o', 'export', device]
+-            first = subprocess.check_output(command, text=True)
+-            if first != subprocess.check_output(command, text=True):
+-                raise Refused('mounted root identity changed during inspection')
+-            values = {}
+-            for line in first.splitlines():
+-                if '=' not in line:
+-                    continue
+-                key, value = line.split('=', 1)
+-                if key in values:
+-                    raise Refused('ambiguous mounted root identity')
+-                values[key] = value
+-            if (values.get('PART_ENTRY_NAME') != 'sunuefi_root'
+-                    or values.get('LABEL') != 'PIANOROOT' or values.get('TYPE') != 'ext4'):
+-                raise Refused('mounted root label, partition name or filesystem differs')
+-        else:
+-            actual = subprocess.check_output(['/usr/sbin/blkid', '-s', 'PARTUUID', '-o', 'value', device], text=True).strip().lower()
+-            if actual != partuuid:
+-                raise Refused('mounted root partition identity differs')
+-    if not Path('/usr/lib/modules', os.uname().release).is_dir():
+-        raise Refused('matching full kernel module directory is missing')
++def require_board(proc=Path('/proc'), run=Path('/run')):
++    # NixOS stage 1 owns the root policy. This hardware entry checks the
++    # actual board and running module ABI, and leaves all per-master DMA
++    # and clock checks below intact. It never authorizes raw register IO.
++    compatible = Path('/sys/firmware/devicetree/base/compatible').read_bytes().split(b'\0')
++    if b'xiaomi,piano' not in compatible:
++        raise Refused('hardware is not Xiaomi Pad 8 Pro (piano)')
++    release = os.uname().release
++    tree = Path('/run/booted-system/kernel-modules/lib/modules') / release
++    if not tree.is_dir():
++        raise Refused('matching booted NixOS kernel modules are missing')
+ 
+ 
+ def require_clock(sysfs=Path('/sys')):
+@@ -276,23 +233,23 @@
+ def main():
+     ap = argparse.ArgumentParser(description=__doc__)
+     mode = ap.add_mutually_exclusive_group()
+-    mode.add_argument('--check-root', action='store_true', help='Verify only the actual RAM or configured Linux root')
++    mode.add_argument('--check-board', action='store_true', help='Verify the actual piano board and running kernel modules')
+     mode.add_argument('--require-scope', choices=tuple(SCOPES) + tuple(CONTEXT_SCOPES) + ('all', 'clock'))
+     mode.add_argument('--observe-scope', choices=('mdss-prebind', 'camera', 'video', 'adsp'),
+                       help='Nonblocking context diagnostic; never authorizes a driver or reports readiness')
+     ap.add_argument('--wait-seconds', type=int, choices=range(31), default=0,
+                     help='Wait only for normal consumer creation or busy getter; faults/drift still fail immediately')
+     args = ap.parse_args()
+-    if args.check_root:
++    if args.check_board:
+         try:
+-            require_ram()
++            require_board()
+         except (OSError, ValueError, Refused, subprocess.SubprocessError) as error:
+             print(str(error), file=sys.stderr)
+             return 1
+         return 0
+     scope = args.require_scope or args.observe_scope or 'bootstrap'
+     try:
+-        require_ram()
++        require_board()
+         module = checker()
+         report = wait_proof(module, scope, args.wait_seconds, prove_fn=prove) if (args.require_scope or args.observe_scope) else prepare(module)
+     except (OSError, ValueError, Refused) as error:

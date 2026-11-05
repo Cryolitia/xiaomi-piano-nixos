@@ -21,7 +21,6 @@ let
         Type = "oneshot";
         RemainAfterExit = true;
         TimeoutStartSec = timeout;
-        ExecStartPre = "${runtime}/piano-hardware-prepare --check-board";
         ExecStart = "${runtime}/${command}";
       };
     };
@@ -78,10 +77,7 @@ in
       ];
       serviceConfig = {
         Type = "simple";
-        ExecStartPre = [
-          "${runtime}/piano-hardware-prepare --check-board"
-          "${runtime}/touch-start"
-        ];
+        ExecStartPre = "${runtime}/touch-start";
         ExecStart = "${runtime}/touch-input";
         Restart = "on-failure";
         RestartSec = 5;
