@@ -9,6 +9,7 @@
   gawk,
   kmod,
   util-linux,
+  iproute2,
   git,
   patch,
   makeWrapper,
@@ -93,6 +94,7 @@ stdenv.mkDerivation {
               gawk
               kmod
               util-linux
+              iproute2
               runtimePython
             ]
           }

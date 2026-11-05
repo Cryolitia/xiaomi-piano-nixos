@@ -77,6 +77,33 @@ ssh nixos@TABLET_IP
 
 启动失败时，长按电源重启，在早期选择页按音量上回 Android。恢复原 Linux 系统需要通过原厂 Fastboot 分别恢复完整 root 备份和 ESP 备份；只恢复 ESP 不能恢复已经覆盖的 root 数据。
 
+## 通过 USB 采集故障
+
+验证镜像通过同一根 USB 数据线提供内核串口和有线网络。电脑作为 USB 主机，串口通常是 `/dev/ttyACM0`，网络接口名可用 `ip -brief link` 查看。平板的 USB 地址为 `10.42.0.2/24`，SSH 用户和初始密码仍为 `nixos`。
+
+先接好数据线，在电脑打开一个终端等待串口出现并保存输出，再启动平板。下例假设本次平板串口为 `/dev/ttyACM0`；电脑已有其他 ACM 设备时，改成对应的实际设备路径。
+
+```sh
+while [ ! -e /dev/ttyACM0 ]; do sleep 1; done
+sudo stty -F /dev/ttyACM0 raw -echo -hupcl
+sudo cat /dev/ttyACM0 | tee piano-kernel-usb.log
+```
+
+在另一个终端配置电脑侧 USB 网络。将 `USB_IFACE` 替换为本次出现的 USB 网络接口名：
+
+```sh
+sudo ip link set USB_IFACE up
+sudo ip address replace 10.42.0.1/24 dev USB_IFACE
+ssh nixos@10.42.0.2 'sudo journalctl --boot --follow --output=short-monotonic --no-pager' | tee piano-journal-usb.log
+```
+
+确认电脑已经持续收到日志后，再复现 Wi-Fi 故障。串口输出停止后保留电脑上的两个日志文件；设备重新枚举后需要重新打开串口。无线启动前最多等待 USB 连接 15 秒，没有数据线时仍继续正常启动。
+
+内核启用 ath12k 调试接口、trace 能力和固件崩溃转储，默认记录 PCI、QMI、固件启动、MAC 和 WMI，不自动开启逐包 trace。固件生成的 `devcoredump` 会保存到 `/var/lib/piano-diagnostics/firmware/`；Linux 日志持久化到 journal，每秒同步一次，磁盘占用上限为 256 MiB。
+
+USB 串口在控制器和主机枚举完成后才开始传输；其缓冲和工作队列可能在整机硬锁死时停止。USB 网络建立后，可另外执行 `ssh nixos@10.42.0.2 'sudo dmesg' > piano-dmesg.txt` 补采内核环中仍保留的启动记录。
+
+
 ## 后续更新
 
 验证配置启用 NixOS 自带的 systemd-boot 模块。在 NixOS 内使用 `sudo nixos-rebuild boot --flake .#piano-gnome` 更新下次启动的系统；24 GB 改装机使用 `.#piano-24gb-gnome`。命令需要在本项目目录执行。更新前会核对 `/boot` 与 `/` 是同一设备上的 SunUEFI 独立分区；随后由标准模块安装匹配的内核、initrd、设备树和启动项，并更新 systemd-boot。默认保留最近五代启动项，不写 EFI 启动变量、UEFI 固件或 Android 启动分区。

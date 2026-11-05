@@ -38,6 +38,14 @@ GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程�
 
 板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙初始化复用现有 MGMT 程序：优先读取只读 persist 的原厂公共地址，缺失时才从 SoC 身份派生稳定地址，不写原厂分区。
 
+## 验证镜像的日志采集
+
+`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。内核包在原 BSP 补丁之后回移两项 ath12k 上游修复：保留 MSDU 扩展描述符中的 DMA 地址高位，以及检查发送统计数组的索引范围。补丁的来源记录在 `packages/kernel/` 对应文件中。
+
+验证内核编入 ath12k 调试接口、trace 和固件转储；默认 `debug_mask=0x1072`，不自动打开逐包 trace。udev 在内核已经生成 devcoredump 后启动归档服务，只读快照并保存到 Linux 自己的状态目录。日志策略和归档服务均不修改原厂分区。现有 ramoops 与 UEFI 共用控制台内存布局，因此此处不改变它的地址和分配方式。
+
+`configurations/usb-debug.nix` 复用固定 BSP 来源中的 NCM/ACM 脚本及 Type-C 就绪规则，不另建 gadget。ADSP 提供 GLINK/UCSI 后才允许 USB 服务绑定控制器；radio 在 ADSP 之后最多等待 USB 枚举 15 秒。USB 不可用时继续启动，无需连接电脑才能使用镜像。ACM 控制台依赖工作队列和 USB 中断，不能保证全局硬锁死后的输出。采集命令见[安装说明](install.md#通过-usb-采集故障)。
+
 ## 检查
 
 运行本机的脚本格式、单行复合语句检查和模块接口检查：

@@ -193,6 +193,18 @@ def install_runtime_scripts(source, debian, installer, adapters):
         (source / "linux/bsp/common/usr/lib/piano/bluetooth-address.py").read_text(),
     )
 
+    # Keep the pinned gadget's role checks and single NCM/ACM configuration.
+    # A changed debug setting needs review rather than silently losing serial.
+    usb_network = (source / "linux/bsp/common/usr/lib/piano/usb-network").read_text()
+    expect_count(
+        usb_network,
+        "grep -qx 'usb=acm-ncm' /etc/piano/linux-debug.conf",
+        1,
+        "USB gadget debug transport",
+    )
+    expect_count(usb_network, 'mkdir -p "$g/functions/acm.usb0"', 1, "USB gadget ACM")
+    installer.write("usb-network", usb_network)
+
 
 def install_hardware_checks(source, installer):
     for original, installed in (
