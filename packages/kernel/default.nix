@@ -62,6 +62,7 @@ let
       ./ath12k-tx-stats-bounds.patch
       ./ath12k-pci-cma.patch
       ./iommu-identity-attach-readback.patch
+      ./iommu-adreno-defer-default-domain.patch
       ./bluetooth-qca-defer-power-sequencer.patch
       ./cpufreq-scmi-piano-boost-default.patch
       ./rpmsg-channel-modalias-fallback.patch
