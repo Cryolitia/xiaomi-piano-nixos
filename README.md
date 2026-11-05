@@ -36,6 +36,8 @@ nixpkgs.config.allowUnfreePredicate = pkg:
 
 当前改装机将 `hardware.xiaomi.piano.memoryGiB` 设为 `24`。目前提供 16 GB 原厂基准和当前实机已核对的 24 GB 布局；8 GB、12 GB 及其他未取得设备树依据的容量会被拒绝，避免套用错误的内存范围。此选项不修改分区大小。
 
+触摸屏默认只启用手指输入。需要使用笔时，设置 `hardware.xiaomi.piano.pen.enable = true;`，同时启用笔输入和笔的蓝牙配置；默认值为 `false`。
+
 ## 构建 GNOME 验证镜像
 
 项目使用 `nixos-unstable`，精确提交由 `flake.lock` 固定。在 ARM64 Linux 构建机上，按内存容量选择一个构建命令：

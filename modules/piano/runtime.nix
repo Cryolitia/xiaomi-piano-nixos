@@ -7,6 +7,7 @@
 }:
 
 let
+  pen = config.hardware.xiaomi.piano.pen;
   runtime = "${pianoPackages.bsp}/libexec/piano";
 in
 {
@@ -28,10 +29,18 @@ in
 
   systemd.services = {
     piano-touch = {
-      description = "Piano THP touch and pen input";
+      description = "Piano THP touch input";
+      preStart = lib.optionalString (!pen.enable) ''
+        # A previous pen-enabled reader may have left stylus scanning active.
+        echo 0 > /proc/nvt_thp_stylus
+      '';
       serviceConfig = {
         Type = "simple";
-        ExecStart = "${runtime}/touch-input";
+        ExecStart =
+          if pen.enable then
+            "${runtime}/touch-input"
+          else
+            "${pianoPackages.bsp}/bin/piano-touch-view input --seconds 0";
         Restart = "on-failure";
         RestartSec = 5;
       };
