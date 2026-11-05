@@ -33,6 +33,9 @@ in
     '';
   };
 
+  options.hardware.xiaomi.piano.pen.enable =
+    lib.mkEnableOption "stylus input and Bluetooth pen configuration";
+
   config = {
     _module.args.pianoPackages = packages // {
       inherit deviceTree;
