@@ -24,26 +24,12 @@ class ScriptInstaller:
         self.libexec.mkdir(parents=True, exist_ok=True)
         self.share.mkdir(parents=True, exist_ok=True)
 
-        # Replace shebangs before generic executable paths, and the specific
-        # hardware entry before its containing directory. Order is significant.
         self.interpreters = {
             "#!/usr/bin/python3": "#!" + args.python,
             "#!/usr/bin/env python3": "#!" + args.python,
             "#!/bin/sh": "#!" + args.shell,
         }
         self.replacements = (
-            # Execute the installed helper so wrapProgram's shell wrapper runs.
-            # Passing that wrapper to Python would parse shell code as Python.
-            (
-                "/usr/bin/python3 /usr/lib/piano/bluetooth-address.py",
-                str(self.libexec / "bluetooth-address.py"),
-            ),
-            ("/usr/bin/python3", args.python),
-            ("/usr/sbin/blkid", args.blkid),
-            (
-                "/usr/lib/piano/piano-ram-hardware-prepare",
-                str(self.libexec / "piano-hardware-prepare"),
-            ),
             ("/usr/lib/piano", str(self.libexec)),
             ("/usr/share/piano", str(self.share)),
             ("/usr/bin/piano-touch-view", str(self.output / "bin/piano-touch-view")),
@@ -82,19 +68,6 @@ def install_runtime_scripts(source, installer):
     )
 
 
-def install_hardware_checks(source, installer):
-    for original, installed in (
-        ("check_piano_kernel_dma_routes.py", "piano_dma_routes.py"),
-        ("check_piano_kernel_contexts.py", "piano_dma_contexts.py"),
-    ):
-        # These verifier bytes are also checked by the driver-side hash logic.
-        # Copy them unchanged rather than applying runtime path substitutions.
-        shutil.copyfile(source / "tools" / original, installer.libexec / installed)
-
-    guard = (source / "linux/userspace/piano-ram-hardware-prepare").read_text()
-    installer.write("piano-hardware-prepare", guard)
-
-
 def install_shared_resources(source, installer):
     shutil.copytree(
         source / "linux/bsp/common/usr/share/piano/pen",
@@ -108,33 +81,40 @@ def install_shared_resources(source, installer):
     )
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-
-    for name in ("sunuefi", "debian", "output", "shell", "python", "blkid"):
-        parser.add_argument("--" + name, required=True)
-
-    args = parser.parse_args()
-    source = Path(args.sunuefi)
-    debian = Path(args.debian)
-
+def prepare_source(source, debian):
     # Load the touch reader source builder from the pinned board source,
     # never from the developer's ambient Python package path.
     sys.path.insert(0, str(source / "tools"))
     helpers = load_module(
         "piano_helpers", source / "tools/build_piano_runtime_helpers.py"
     )
-    installer = ScriptInstaller(args)
-
-    install_runtime_scripts(source, installer)
-    install_hardware_checks(source, installer)
-    install_shared_resources(source, installer)
-
     # Build the reviewed reader with the calibrated pen core in the Nix build;
     # do not install a host executable or a foreign prebuilt tool.
     work = Path.cwd()
     derived, _ = helpers.derive_touch_source(debian, work)
     shutil.copyfile(derived, work / "piano-touch-view.c")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    prepare = commands.add_parser("prepare", help="derive the touch reader source")
+    prepare.add_argument("sunuefi", type=Path)
+    prepare.add_argument("debian", type=Path)
+    install = commands.add_parser("install", help="install runtime scripts and data")
+
+    for name in ("sunuefi", "output", "shell", "python"):
+        install.add_argument("--" + name, required=True)
+
+    args = parser.parse_args()
+
+    if args.command == "prepare":
+        prepare_source(args.sunuefi, args.debian)
+    else:
+        installer = ScriptInstaller(args)
+        source = Path(args.sunuefi)
+        install_runtime_scripts(source, installer)
+        install_shared_resources(source, installer)
 
 
 if __name__ == "__main__":
