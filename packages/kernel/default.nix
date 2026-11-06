@@ -58,19 +58,19 @@ let
     };
     # Keep the upstream TX fixes and attach the board's WLAN DMA pool.
     patches = map checkedPatch series.patches ++ [
-      ./ath12k-msdu-dma-address.patch
-      ./ath12k-tx-stats-bounds.patch
-      ./ath12k-pci-cma.patch
-      ./iommu-identity-attach-readback.patch
-      ./iommu-adreno-defer-default-domain.patch
-      ./iommu-media-default-domain.patch
-      ./bluetooth-qca-defer-power-sequencer.patch
-      ./nanosic-tablet-mode-switch.patch
-      ./cpufreq-scmi-piano-boost-default.patch
-      ./rpmsg-channel-modalias-fallback.patch
-      ./pcie-qcom-power-before-phy.patch
-      ./qmp-pcie-honor-skip-bcr.patch
-      ./pmic-glink-altmode-freezable.patch
+      ./patches/ath12k-msdu-dma-address.patch
+      ./patches/ath12k-tx-stats-bounds.patch
+      ./patches/ath12k-pci-cma.patch
+      ./patches/iommu-identity-attach-readback.patch
+      ./patches/iommu-adreno-defer-default-domain.patch
+      ./patches/iommu-media-default-domain.patch
+      ./patches/bluetooth-qca-defer-power-sequencer.patch
+      ./patches/nanosic-tablet-mode-switch.patch
+      ./patches/cpufreq-scmi-piano-boost-default.patch
+      ./patches/rpmsg-channel-modalias-fallback.patch
+      ./patches/pcie-qcom-power-before-phy.patch
+      ./patches/qmp-pcie-honor-skip-bcr.patch
+      ./patches/pmic-glink-altmode-freezable.patch
     ];
     postPatch = ''
       ${buildPackages.python3.interpreter} ${./config.py} . ${kernelInputs}

@@ -54,7 +54,7 @@ GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程�
 
 ## 验证镜像的日志采集
 
-`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。内核包在原 BSP 补丁之后保留 ath12k 的两项上游发送修复和专用 DMA 池，并加入 identity 附着检查、蓝牙电源延迟探测、RPMsg 别名及 CPU boost 默认策略。补丁均保存在 `packages/kernel/`，内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
+`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。内核包在原 BSP 补丁之后保留 ath12k 的两项上游发送修复和专用 DMA 池，并加入 identity 附着检查、蓝牙电源延迟探测、RPMsg 别名及 CPU boost 默认策略。补丁均保存在 `packages/kernel/patches/`，内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
 
 验证内核编入 ath12k 调试接口、trace 和固件转储；默认 `debug_mask=0x1072`，不自动打开逐包 trace。udev 在内核已经生成 devcoredump 后启动归档服务，只读快照并保存到 Linux 自己的状态目录。日志策略和归档服务均不修改原厂分区。现有 ramoops 与 UEFI 共用控制台内存布局，因此此处不改变它的地址和分配方式。
 
