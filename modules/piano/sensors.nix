@@ -24,6 +24,7 @@ in
   boot.initrd.availableKernelModules.hid-sensor-hub = lib.mkForce false;
 
   services.udev.packages = lib.mkIf config.hardware.sensor.iio.enable [ sensors.runtime ];
+  environment.systemPackages = lib.mkIf config.hardware.sensor.iio.enable [ sensors.runtime ];
 
   systemd.services = lib.mkIf config.hardware.sensor.iio.enable {
     piano-sensors-import = {

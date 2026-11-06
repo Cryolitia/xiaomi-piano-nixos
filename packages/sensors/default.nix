@@ -34,6 +34,14 @@ let
   ssc = libssc.overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [
       "${source}/patches/libssc/0001-fix-sensor-property-types.patch"
+      "${source}/patches/libssc/0002-raw-vector-reports.patch"
+      "${source}/patches/libssc/0003-piano-ssc-vector-cli.patch"
+      "${source}/patches/libssc/0004-metadata-discovery.patch"
+    ];
+    doCheck = true;
+    mesonCheckFlags = [
+      "--setup=metadata"
+      "tests-discovery"
     ];
   });
   sensorProxy = (iio-sensor-proxy.override { libssc = ssc; }).overrideAttrs (old: {
@@ -57,6 +65,7 @@ let
       mkdir -p "$out/bin" "$out/libexec/piano-sensors" "$out/lib/udev/rules.d"
       cp piano-sensors/piano-sensors-import "$out/libexec/piano-sensors/import"
       cp piano-sensors/piano-sensors-wait "$out/bin/piano-sensors-wait"
+      ln -s ${ssc}/bin/piano-ssc-vector "$out/bin/piano-ssc-vector"
       cp piano-sensors/debian/piano-sensors.udev "$out/lib/udev/rules.d/81-piano-sensors.rules"
 
       # Reuse the importer and its read-only mappings; choose the active GPT
