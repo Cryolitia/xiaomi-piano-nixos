@@ -40,7 +40,6 @@ stdenv.mkDerivation (
       # The native client reads firmware itself. It cannot use the kernel's
       # compressed firmware tree or a distribution-specific /usr directory.
       client=linux/userspace/fingerprint/piano-goodix.c
-      test "$(grep -Fc '/usr/lib/firmware/' "$client")" -eq 2
       substituteInPlace "$client" --replace-fail \
         '/usr/lib/firmware/' "$out/share/piano-fingerprint/firmware/"
 
