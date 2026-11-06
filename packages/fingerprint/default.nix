@@ -4,6 +4,8 @@
   callPackage,
   fetchzip,
   writeText,
+  applyPatches,
+  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
 }:
 
 stdenv.mkDerivation (
@@ -27,13 +29,28 @@ stdenv.mkDerivation (
         inherit hash;
       };
     qtee = fetchSource "quic-teec" "sha256-HVtw2RT3LxwcRifzX9XT7nNsWPCJesVbuAhjPSgscus=";
-    mink = fetchSource "minkipc" "sha256-mup6oVEMDkT6IlMvSBAsuajLxPa+kVG9HpJmSaP0dio=";
+    minkSeriesPath = "${finalAttrs.src}/${sources.minkipc.patch_series}";
+    minkSeries = builtins.fromJSON (builtins.readFile minkSeriesPath);
+    mink = applyPatches {
+      name = "piano-fingerprint-minkipc";
+      src = fetchSource "minkipc" "sha256-mup6oVEMDkT6IlMvSBAsuajLxPa+kVG9HpJmSaP0dio=";
+      patches = map (
+        entry:
+        let
+          path = "${builtins.dirOf minkSeriesPath}/${entry.file}";
+        in
+        assert lib.assertMsg (
+          builtins.hashFile "sha256" path == entry.sha256
+        ) "Piano MinkIPC patch hash mismatch: ${entry.file}";
+        path
+      ) minkSeries.patches;
+    };
     qcbor = fetchSource "qcbor" "sha256-8KWnTqU4oP+WT1OapEGqTMgwHJnms1V1Aj/3WjA3QMY=";
   in
   {
     pname = "piano-fingerprint";
     version = "1";
-    src = callPackage ../sunuefi-source.nix { };
+    src = sunuefiSrc;
     dontConfigure = true;
 
     postPatch = ''
@@ -42,12 +59,6 @@ stdenv.mkDerivation (
       client=linux/userspace/fingerprint/piano-goodix.c
       substituteInPlace "$client" --replace-fail \
         '/usr/lib/firmware/' "$out/share/piano-fingerprint/firmware/"
-
-      # SET_ACTIVE_GROUP alone does not prove isolation of the TA's FTS paths.
-      # The client has no filesystem listener or enrollment/authentication API.
-      substituteInPlace "$client" --replace-fail \
-        'list queries templates in an isolated Linux user profile.' \
-        'list queries TA templates; persistent storage isolation is not implemented.'
     '';
 
     buildPhase = ''
@@ -58,6 +69,8 @@ stdenv.mkDerivation (
       "$CC" -O2 -D_GNU_SOURCE -DUSE_QCBOR -Wa,--noexecstack \
         -I${qtee}/libqcomtee/include -I${qtee}/libqcomtee/src \
         -I${mink}/libminkadaptor/include -I${mink}/libminkadaptor/src \
+        -I${mink}/listeners/libfsservice/gpfs \
+        -I${mink}/listeners/libfsservice/fs -I${mink}/listeners/libfsservice/cmn \
         -I${qcbor}/inc \
         ${qtee}/libqcomtee/src/qcomtee_object.c \
         ${qtee}/libqcomtee/src/objects/credentials_obj.c \
@@ -68,6 +81,8 @@ stdenv.mkDerivation (
         ${qcbor}/src/UsefulBuf.c ${qcbor}/src/qcbor_encode.c \
         ${qcbor}/src/qcbor_decode.c ${qcbor}/src/qcbor_err_to_str.c \
         ${qcbor}/src/ieee754.c \
+        linux/userspace/fingerprint/piano-goodix-storage.c \
+        linux/userspace/fingerprint/piano-goodix-events.c \
         linux/userspace/fingerprint/piano-goodix.c \
         -pthread -lm -o piano-fingerprint-ctl
 
