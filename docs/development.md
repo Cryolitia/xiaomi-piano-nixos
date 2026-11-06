@@ -40,7 +40,7 @@ FFmpeg 的硬件编解码补丁通过设备模块的 nixpkgs overlay 应用于 F
 
 设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件：原厂 120/60、90/50/48/30、144 分属三组时序和 DDIC 配置，不能把全局最低的 30 Hz 当作 120 Hz 时序的连续下限。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)
 
-设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。启用 GNOME 时，`modules/piano/gnome.nix` 为现有 Mutter、Shell、Settings Daemon 和控制中心补齐“锁定屏幕”电源键动作，默认用于用户会话和 GDM：亮屏时短按锁屏灭屏，熄屏时短按唤醒且不解锁。Shell 在按下时记录显示状态，松开时由现有 Power daemon 统一完成锁屏与 DPMS，防止自动唤醒、按键松开和锁屏动画互相覆盖。设置中仍可选择原有动作，不新增电源键守护程序。更新后需要完整的新 GNOME 会话，不能用旧 Shell 的热更新代替。
+设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。`modules/piano/gnome.nix` 将用户会话和 GDM 登录页的电源键动作设为 GNOME 原生的 `suspend`。短按电源键通过 logind 挂起系统；仅熄屏而系统仍运行时也执行这一动作。成功恢复后，GNOME 会暂时忽略电源键，避免唤醒时上报的同次按键再次触发挂起。
 
 系统挂起独立于屏幕灭屏。PCIe PHY 的 `piano_skip_bcr` 同时约束初始化、错误回收和退出；PMIC GLINK altmode worker 使用上游的 freezable workqueue 修复，避免在设备恢复前访问 Type-C 硬件。该修复不覆盖 UCSI 到 DWC3 的同步角色通知路径。调试闹钟应按 `/sys/class/rtc/rtc*/name` 选择 `rtc-pm8xxx` 对应设备；清醒状态的闹钟中断不能证明 deep 挂起能恢复。[上游 GLINK 修复](https://github.com/torvalds/linux/commit/c7c56b6ec077cb96657494b8c18c2c78625035b1)
 
