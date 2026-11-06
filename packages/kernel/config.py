@@ -41,30 +41,13 @@ def read_settings(fragments):
     return settings
 
 
-def nixos_settings(settings):
-    # The importing NixOS configuration supplies boot arguments. Do not carry
-    # Android's userdata path or the old /beaconinit and /pianoinit bootstraps.
-    settings.update(
-        {
-            "CONFIG_CMDLINE": 'CONFIG_CMDLINE=""',
-            "CONFIG_CMDLINE_FORCE": "# CONFIG_CMDLINE_FORCE is not set",
-            "CONFIG_LOCALVERSION": 'CONFIG_LOCALVERSION="-piano-nixos"',
-            "CONFIG_LOCALVERSION_AUTO": "# CONFIG_LOCALVERSION_AUTO is not set",
-        }
-    )
-
-    return settings
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kernel", type=Path)
     parser.add_argument("sunuefi", type=Path)
     args = parser.parse_args()
 
-    settings = nixos_settings(
-        read_settings(config_fragments(args.kernel, args.sunuefi))
-    )
+    settings = read_settings(config_fragments(args.kernel, args.sunuefi))
     output = args.kernel / "arch/arm64/configs/piano_nixos_defconfig"
     output.write_text("\n".join(settings[name] for name in sorted(settings)) + "\n")
 
