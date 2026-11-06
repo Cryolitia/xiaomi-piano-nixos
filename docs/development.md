@@ -20,7 +20,7 @@ Linux 设备树的内存表由本项目按容量选择。启动链为 SunUEFI �
 
 ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。`loader/entries/nixos-*.conf` 使用 `linux`、`initrd`、`devicetree` 和 `options`；载荷使用 nixpkgs systemd-boot 模块的 `/EFI/nixos/<store 名称>-<文件名>.efi` 平铺布局。初始离线 ESP 从系统的 `boot.json` 及其设备树扩展生成入口；后续更新、代际选择和清理完全使用 NixOS 自带的 systemd-boot 模块。本项目不构建 UEFI 固件或 Android 模块。
 
-验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 同时提供 root 和 ESP 的原始镜像、稀疏镜像，以及统一的清单和摘要。`result/boot-files/` 提供同次构建的离线 Linux 启动文件及摘要。镜像打包保留启动载荷的基本架构和格式检查，并读回验证 FAT32 中的启动文件；运行时由标准模块消费每代 bootspec，`nixos-rebuild` 会连同设备树一起更新启动文件。
+验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 只提供 `root.sparse.img` 和 `esp.sparse.img`。root 复用 nixpkgs `make-ext4-fs.nix` 生成的文件系统，按实际内容确定大小，首次启动时扩展到已有分区；打包阶段不再复制 raw root 或二次调整容量。两份镜像统一使用 `img2simg` 转换。启动载荷和读回校验所需清单只作为内部构建输入，ESP raw 文件在临时目录生成。镜像打包保留启动载荷的基本架构和格式检查，读回验证 FAT32 中的启动文件，并将 ESP 稀疏镜像展开后逐字节比较；运行时由标准模块消费每代 bootspec，`nixos-rebuild` 会连同设备树一起更新启动文件。
 
 标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理。只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 

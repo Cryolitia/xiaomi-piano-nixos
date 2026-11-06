@@ -7,11 +7,9 @@
   libfaketime,
   systemd,
   bootFiles,
-  callPackage,
-  sunuefiSrc ? callPackage ../packages/sunuefi-source.nix { },
 }:
 
-runCommand "piano-nixos-esp-image"
+runCommand "piano-nixos-esp.sparse.img"
   {
     nativeBuildInputs = [
       python3
@@ -26,6 +24,5 @@ runCommand "piano-nixos-esp-image"
     faketime '1980-01-01 00:00:00' python3 ${./make-esp.py} \
       --boot-files ${bootFiles} \
       --systemd-boot ${systemd}/lib/systemd/boot/efi/systemd-bootaa64.efi \
-      --sparse-tool ${sunuefiSrc}/tools/package_sparse_images.py \
       --output "$out"
   ''

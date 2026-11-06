@@ -63,7 +63,7 @@ nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
 
 验证系统使用 GNOME、中文界面、Chromium、NetworkManager 和 IBus 拼音，自动登录 `nixos`，初始密码为 `nixos`，并启用 SSH。这些设置只属于验证配置，不会随硬件模块导入自己的系统。
 
-一次构建会在同一个 `result/` 中同时生成 `root.ext4.img`、`root.sparse.img`、`esp.img` 和 `esp.sparse.img`，并提供统一的 `manifest.json` 和 `SHA256SUMS`。root 系统镜像与 512 MiB 的 ESP 启动镜像来自同一系统配置，可通过原厂 Fastboot 写入已有分区。ESP 包含 systemd-boot、匹配的 EFI-stub 内核、initrd 和设备树，复用支持标准 EFI 启动的 SunUEFI。安装后通过标准 `nixos-rebuild` 更新系统和启动文件，匹配的设备树随每代一起安装。刷写步骤与启动前提见 [安装](docs/install.md)。
+一次构建在同一个 `result/` 中生成 `root.sparse.img` 和 `esp.sparse.img` 两个稀疏镜像，可通过 SunUEFI 引导助手或原厂 Fastboot 写入已有分区。ESP 为 512 MiB，包含 systemd-boot、匹配的 EFI-stub 内核、initrd 和设备树；root 按系统实际大小生成，首次启动时自动扩展到现有分区大小。两份镜像来自同一系统配置，复用支持标准 EFI 启动的 SunUEFI。安装后通过标准 `nixos-rebuild` 更新系统和启动文件，匹配的设备树随每代一起安装。刷写步骤与启动前提见 [安装](docs/install.md)。
 
 ## 目录
 
