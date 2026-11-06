@@ -1,6 +1,6 @@
 {
   lib,
-  stdenv,
+  stdenvNoCC,
   callPackage,
   fetchFromGitHub,
   applyPatches,
@@ -43,11 +43,12 @@ let
   });
   runtimePython = python3.withPackages (ps: [ ps.liblp ]);
 
-  runtime = stdenv.mkDerivation {
+  runtime = stdenvNoCC.mkDerivation {
     pname = "piano-sensors";
     version = "5";
     src = source;
     nativeBuildInputs = [ makeWrapper ];
+    dontConfigure = true;
     dontBuild = true;
 
     installPhase = ''
@@ -69,23 +70,29 @@ let
 
       makeWrapper ${runtimePython}/bin/python3 "$out/bin/piano-sensors-import" \
         --add-flags '${./partitions.py} import' \
-        --add-flags "--importer=$out/libexec/piano-sensors/import"
+        --add-flags "--importer=$out/libexec/piano-sensors/import" \
+        --prefix PATH : ${lib.makeBinPath [ util-linux ]}
       makeWrapper ${runtimePython}/bin/python3 "$out/bin/piano-sensors-lp-table" \
         --add-flags '${./partitions.py} table'
 
-      for program in "$out/bin/"* "$out/libexec/piano-sensors/import"; do
-        wrapProgram "$program" --prefix PATH : ${
-          lib.makeBinPath [
-            coreutils
-            gawk
-            kmod
-            lvm2
-            util-linux
-            erofs-utils
-            ssc
-          ]
-        }
-      done
+      # Each entry gets only the commands it invokes; Python entry points
+      # above already have their final wrapper.
+      wrapProgram "$out/libexec/piano-sensors/import" --prefix PATH : ${
+        lib.makeBinPath [
+          coreutils
+          gawk
+          kmod
+          lvm2
+          util-linux
+          erofs-utils
+        ]
+      }
+      wrapProgram "$out/bin/piano-sensors-wait" --prefix PATH : ${
+        lib.makeBinPath [
+          coreutils
+          ssc
+        ]
+      }
 
       install -Dm644 piano-sensors/debian/copyright "$out/share/licenses/piano-sensors/copyright"
 

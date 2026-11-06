@@ -5,9 +5,7 @@
   bash,
   coreutils,
   gnugrep,
-  gnused,
   gawk,
-  kmod,
   util-linux,
   iproute2,
   git,
@@ -56,50 +54,53 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    # Install the shared runtime scripts with Nix store paths.
-    python3 ${./transform.py} \
-      --sunuefi "$PWD" --debian ${debianPianoSrc} --output "$out" \
-      --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3 \
-      --blkid ${util-linux}/bin/blkid
+    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc}
 
     make -C linux/userspace/pen OUT="$PWD/pen-build" \
       CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
     $CC -O2 -Ilinux/userspace/pen -c piano-touch-view.c -o touch.o
-    mkdir -p "$out/bin"
-    $CXX touch.o pen-build/libpiano-pen-core.a -lm -o "$out/bin/piano-touch-view"
+    $CXX touch.o pen-build/libpiano-pen-core.a -lm -o piano-touch-view
 
-    # Decode the generated topology as a build-time consistency check.
-    bash ${debianPianoSrc}/scripts/build-topology.sh ${audioReachSrc} "$out/lib/firmware"
-    alsatplg -d "$out/lib/firmware/qcom/sm8750/Xiaomi Pad 8 Pro-tplg.bin" -o topology-decoded.conf
+    bash ${debianPianoSrc}/scripts/build-topology.sh ${audioReachSrc} "$PWD/firmware"
 
     runHook postBuild
+  '';
+
+  # alsatplg is a native build tool; this also works when cross compiling.
+  doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+    alsatplg -d "firmware/qcom/sm8750/Xiaomi Pad 8 Pro-tplg.bin" -o topology-decoded.conf
+    runHook postCheck
   '';
 
   installPhase = ''
     runHook preInstall
 
-    cp pen-build/piano-pen-offline "$out/bin/"
+    python3 ${./transform.py} install \
+      --sunuefi "$PWD" --output "$out" \
+      --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3
 
-    # Give all runtime scripts the same explicit tool and typelib search paths.
-    for script in "$out"/libexec/piano/*; do
-      if test -x "$script" && ! test -L "$script"; then
-        wrapProgram "$script" \
-          --prefix GI_TYPELIB_PATH : ${lib.getLib glib}/lib/girepository-1.0 \
-          --prefix PATH : ${
-            lib.makeBinPath [
-              bash
-              coreutils
-              gnugrep
-              gnused
-              gawk
-              kmod
-              util-linux
-              iproute2
-              runtimePython
-            ]
-          }
-      fi
-    done
+    install -Dm755 piano-touch-view "$out/bin/piano-touch-view"
+    install -Dm755 pen-build/piano-pen-offline "$out/bin/piano-pen-offline"
+    mkdir -p "$out/lib"
+    cp -r firmware "$out/lib/firmware"
+
+    wrapProgram "$out/libexec/piano/touch-input" \
+      --prefix PATH : ${lib.makeBinPath [ gawk ]}
+    wrapProgram "$out/libexec/piano/pen-bluetooth" \
+      --prefix GI_TYPELIB_PATH : ${lib.getLib glib}/lib/girepository-1.0
+    wrapProgram "$out/libexec/piano/bluetooth-address.py" \
+      --prefix PATH : ${lib.makeBinPath [ util-linux ]}
+    wrapProgram "$out/libexec/piano/usb-network" \
+      --prefix PATH : ${
+        lib.makeBinPath [
+          coreutils
+          gnugrep
+          util-linux
+          iproute2
+        ]
+      }
 
     install -Dm644 ${sunuefiSrc}/LICENSE.md "$out/share/licenses/piano-bsp/LICENSE.sunuefi.md"
     install -Dm644 ${debianPianoSrc}/LICENSE "$out/share/licenses/piano-bsp/LICENSE.debian-piano"
