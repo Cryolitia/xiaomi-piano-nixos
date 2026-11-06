@@ -113,6 +113,7 @@ let
           # Boot arguments and initrd are supplied by the importing NixOS
           # system. Keep the standard EFI entry and initrd formats available.
           CMDLINE = lib.mkForce (freeform "");
+          CMDLINE_FROM_BOOTLOADER = lib.mkForce yes;
           CMDLINE_FORCE = lib.mkForce no;
           CMDLINE_EXTEND = lib.mkForce no;
           EFI = lib.mkForce yes;
@@ -189,6 +190,7 @@ kernel.overrideAttrs (old: {
     done
 
     grep -qx 'CONFIG_CMDLINE=""' "$piano_config"
+    grep -qx 'CONFIG_CMDLINE_FROM_BOOTLOADER=y' "$piano_config"
     ! grep -qx 'CONFIG_CMDLINE_FORCE=y' "$piano_config"
 
     # Missing matches otherwise leave firewall-start with partially applied rules.
