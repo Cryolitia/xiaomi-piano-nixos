@@ -189,8 +189,9 @@ kernel.overrideAttrs (old: {
       }
     done
 
+    # With an empty CMDLINE, oldconfig drops the inactive command-line
+    # choice. The effective string and absence of FORCE determine boot policy.
     grep -qx 'CONFIG_CMDLINE=""' "$piano_config"
-    grep -qx 'CONFIG_CMDLINE_FROM_BOOTLOADER=y' "$piano_config"
     ! grep -qx 'CONFIG_CMDLINE_FORCE=y' "$piano_config"
 
     # Missing matches otherwise leave firewall-start with partially applied rules.
