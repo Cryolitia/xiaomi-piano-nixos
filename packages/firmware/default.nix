@@ -18,6 +18,7 @@ stdenvNoCC.mkDerivation {
     hash = "sha256-BoKWcBkNaE0wDTYjLNpp35f7gv1YJHURcFptdIhLefo=";
   };
 
+  dontConfigure = true;
   dontBuild = true;
   nativeBuildInputs = [ python3 ];
 
@@ -29,7 +30,6 @@ stdenvNoCC.mkDerivation {
     cd firmware
     sha256sum -c SHA256SUMS
     cp -r . "$out/lib/firmware/"
-    chmod -R u+w "$out"
 
     cp -r ../LICENSES "$out/share/doc/piano-firmware/"
     cp ../README.md "$out/share/doc/piano-firmware/README.source.md"

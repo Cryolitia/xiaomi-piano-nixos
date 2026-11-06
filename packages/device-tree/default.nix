@@ -33,7 +33,7 @@ stdenvNoCC.mkDerivation {
 
     # The adapter supplies Nix paths; all board data and transforms follow
     # the pinned SunUEFI source.
-    python3 ${./.}/build.py ${sunuefiSrc} ${panel} \
+    python3 ${./build.py} ${sunuefiSrc} ${panel} \
       ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")} \
       ${toString memoryGiB}
 

@@ -2,7 +2,6 @@
   lib,
   stdenv,
   python3,
-  git,
   patch,
   callPackage,
   debianPianoSrc,
@@ -25,7 +24,6 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [
     python3
-    git
     patch
   ];
 

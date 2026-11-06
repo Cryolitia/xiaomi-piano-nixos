@@ -21,7 +21,7 @@ def install_files(manifest_path, manifest, output):
 
         target = output / "lib/firmware" / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
+        target.write_bytes(data)
         target.chmod(0o644)
 
 
@@ -49,6 +49,10 @@ def main():
     for relative in policy["overlays"]:
         manifest_path = args.source / relative
         manifest = json.loads(manifest_path.read_text())
+
+        # The userspace fingerprint client installs its uncompressed resources.
+        if manifest["component"] == "piano-fingerprint":
+            continue
 
         install_files(manifest_path, manifest, args.output)
         install_notices(manifest_path, args.output)
