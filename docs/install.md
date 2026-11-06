@@ -4,30 +4,31 @@
 
 设备树按 `hardware.xiaomi.piano.memoryGiB` 选择已有依据的内存布局。16 GB 使用原厂基准，24 GB 使用当前实机已核对的改装布局；systemd-boot 加载这份设备树，SunUEFI 通过标准修正协议补充本次启动的面板和 Gunyah 参数。启动前需安装支持标准 EFI 内存图、设备树修正和内核退出流程的 SunUEFI；只有 128 MiB raw 启动支持的旧固件仍需更新。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。
 
-## 构建与校验
+## 构建
 
 在 ARM64 Linux 构建机的项目目录运行：
 
 ```sh
 nix build .#gnome-image
 # 24 GB 改装机使用 .#gnome-24gb-image
-(cd result && sha256sum -c SHA256SUMS)
 ```
 
 其他架构的电脑需要配置 ARM64 Nix builder，并使用完整输出名，例如 `nix build .#packages.aarch64-linux.gnome-24gb-image`。
 
-选择一个镜像入口运行一次 `nix build`，同一个 `result/` 中会同时得到下列文件；`manifest.json` 和 `SHA256SUMS` 统一记录这套配对的 root、ESP 镜像。
+选择一个镜像入口运行一次 `nix build`，同一个 `result/` 中会同时得到两份配套镜像：
 
 | 文件 | 用途 |
 | --- | --- |
-| `esp.sparse.img` | 用原厂 Fastboot 写入 `sunuefi_esp` |
-| `esp.img` | 同一启动文件系统的原始 FAT32 镜像 |
-| `root.sparse.img` | 用原厂 Fastboot 写入 `sunuefi_root` |
-| `root.ext4.img` | 系统分区的原始 ext4 镜像 |
-| `boot-files.tar` / `boot-files/` | 同套镜像的 Linux 载荷，用于更新已有 ESP |
-| `manifest.json` / `SHA256SUMS` | 构建身份、容量和文件摘要 |
+| `esp.sparse.img` | 启动镜像，写入 `sunuefi_esp` |
+| `root.sparse.img` | 系统镜像，写入 `sunuefi_root` |
 
-ESP 镜像为 512 MiB，使用 4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签。root 镜像默认 16 GiB。目标分区分别至少需要相同容量；容量不足时应先停止，不能将镜像截短。
+ESP 展开后为 512 MiB，使用 4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签。root 按系统实际大小生成，首次启动时自动扩展到现有分区大小。目标分区必须能容纳镜像展开后的内容，不能用稀疏文件自身的大小判断。以下命令读取 root 稀疏镜像头中的块大小和块数，显示所需字节数：
+
+```sh
+od --endian=little -An -tu4 -j12 -N8 result/root.sparse.img | awk '{printf "root: %.0f bytes\n", $1 * $2}'
+```
+
+使用 Android 的 SunUEFI 引导助手时，在存储页面分别选择这两份镜像并确认写入；只更新启动文件时仅选择 `esp.sparse.img`。引导助手会在写入前检查展开大小。
 
 ## 备份现有系统
 
@@ -59,7 +60,7 @@ fastboot -s SERIAL getvar partition-size:sunuefi_esp
 fastboot -s SERIAL getvar partition-size:sunuefi_root
 ```
 
-`product` 应为 `piano`。ESP 至少需要 `0x20000000` 字节（512 MiB）；默认 root 至少需要 `0x400000000` 字节（16 GiB）。确认后，在项目目录写入同一 `result` 中的两份镜像，全部成功后再重启：
+`product` 应为 `piano`。ESP 至少需要 `0x20000000` 字节（512 MiB）；root 分区容量必须不小于前面读出的展开大小。Fastboot 返回的分区容量以十六进制表示。确认后，在项目目录写入同一 `result` 中的两份镜像，全部成功后再重启：
 
 ```sh
 fastboot -s SERIAL -S 128M flash sunuefi_root result/root.sparse.img
@@ -67,7 +68,7 @@ fastboot -s SERIAL -S 128M flash sunuefi_esp result/esp.sparse.img
 fastboot -s SERIAL reboot
 ```
 
-在早期选择页进入 UEFI，再启动 Linux。systemd-boot 菜单等待 15 秒；通过 `nixos-rebuild` 安装多个版本后，可在此选择旧版本回退。 音量键选择、短按电源确认需要 SunUEFI 0.5.10 或更新版本；旧版固件的扩展输入协议缺失，可能在按音量键后使菜单停止响应。系统自动登录 `nixos`，初始密码为 `nixos`。根文件系统通过 GPT 分区名 `sunuefi_root` 定位，由 NixOS 标准流程检查并自动扩展到现有分区大小，不修改 GPT。
+在早期选择页进入 UEFI，再启动 Linux。systemd-boot 的菜单等待时间由 `boot.loader.timeout` 控制；通过 `nixos-rebuild` 安装多个版本后，可在此选择旧版本回退。音量键选择、短按电源确认需要 SunUEFI 0.5.10 或更新版本；旧版固件的扩展输入协议缺失，可能在按音量键后使菜单停止响应。系统自动登录 `nixos`，初始密码为 `nixos`。根文件系统通过 GPT 分区名 `sunuefi_root` 定位，由 NixOS 标准流程检查并自动扩展到现有分区大小，不修改 GPT。
 
 连接 Wi-Fi 后，在网络设置中查看平板的 IP 地址。同一网络的电脑可通过 SSH 登录，命令中的 `TABLET_IP` 替换为该地址：
 

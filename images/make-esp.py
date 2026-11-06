@@ -2,8 +2,8 @@
 """Build and read back a complete SunUEFI ESP without accessing a device."""
 
 import argparse
+import filecmp
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -46,14 +46,6 @@ def check_efi(path):
         and struct.unpack_from("<H", pe, 92)[0] == 10,
         f"Expected an AArch64 PE32+ EFI application: {path}",
     )
-
-
-def load_sparse_tool(path):
-    """Use the same sparse writer as SunUEFI's release packaging."""
-    spec = importlib.util.spec_from_file_location("sunuefi_sparse", path)
-    sparse = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(sparse)
-    return sparse
 
 
 def stage_boot_files(boot_files, tree):
@@ -125,7 +117,6 @@ def populate_filesystem(raw, tree, files, boot_files, work):
     for path in directories:
         run("mmd", "-i", raw, "::/" + path.relative_to(tree).as_posix())
 
-    esp_files = {}
     readback = work / "readback"
     for path in files:
         name = path.relative_to(tree).as_posix()
@@ -143,65 +134,24 @@ def populate_filesystem(raw, tree, files, boot_files, work):
             f"ESP readback differs: {name}",
         )
         readback.unlink()
-        esp_files[name] = info
 
     # Read every file back before accepting the filesystem or producing the
     # sparse image; successful mcopy alone does not prove the stored bytes.
     run("fsck.fat", "-n", raw)
-    return esp_files
 
 
-def create_sparse_image(raw, sparse_path, sparse_tool, work):
-    info = sparse_tool.convert(raw, sparse_path, SECTOR)
-    require(
-        info["expanded_bytes"] == CAPACITY,
-        "Sparse ESP has an unexpected expanded size.",
-    )
+def create_sparse_image(raw, sparse_path, work):
+    run("img2simg", raw, sparse_path, SECTOR)
     expanded = work / "expanded.img"
     run("simg2img", sparse_path, expanded)
     require(
         expanded.stat().st_size == CAPACITY
-        and digest(expanded) == info["expanded_sha256"],
+        and filecmp.cmp(raw, expanded, shallow=False),
         "Sparse ESP roundtrip differs from the raw image.",
-    )
-    return info
-
-
-def write_manifest(output, boot, esp_files, sparse_info):
-    manifest = {
-        "schemaVersion": 1,
-        "system": boot["system"],
-        "espPartition": "sunuefi_esp",
-        "espLabel": "SUNUEFI_ESP",
-        "sectorBytes": SECTOR,
-        "expandedEspBytes": CAPACITY,
-        "espFiles": esp_files,
-        "files": {
-            "esp.img": {
-                "format": "raw-fat32",
-                "bytes": CAPACITY,
-                "sha256": sparse_info["expanded_sha256"],
-            },
-            "esp.sparse.img": {
-                "format": "android-sparse",
-                "bytes": sparse_info["bytes"],
-                "sha256": sparse_info["sha256"],
-                "expandedBytes": CAPACITY,
-            },
-        },
-    }
-    manifest_path = output / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    checksums = {name: info["sha256"] for name, info in manifest["files"].items()}
-    checksums["manifest.json"] = digest(manifest_path)
-    (output / "SHA256SUMS").write_text(
-        "".join(f"{checksum}  {name}\n" for name, checksum in checksums.items())
     )
 
 
 def build(args):
-    args.output.mkdir()
-    sparse_tool = load_sparse_tool(args.sparse_tool)
     boot = json.loads((args.boot_files / "manifest.json").read_text())
 
     with tempfile.TemporaryDirectory() as temporary:
@@ -215,21 +165,16 @@ def build(args):
             sum(path.stat().st_size for path in files) + 2 * 1024**2 < CAPACITY,
             "Linux boot files exceed the 512 MiB ESP capacity.",
         )
-        raw = args.output / "esp.img"
+        raw = work / "esp.img"
         create_filesystem(raw)
-        esp_files = populate_filesystem(raw, tree, files, boot["files"], work)
-        sparse_info = create_sparse_image(
-            raw, args.output / "esp.sparse.img", sparse_tool, work
-        )
-
-    write_manifest(args.output, boot, esp_files, sparse_info)
+        populate_filesystem(raw, tree, files, boot["files"], work)
+        create_sparse_image(raw, args.output, work)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--boot-files", type=Path, required=True)
     parser.add_argument("--systemd-boot", type=Path, required=True)
-    parser.add_argument("--sparse-tool", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     build(parser.parse_args())
 

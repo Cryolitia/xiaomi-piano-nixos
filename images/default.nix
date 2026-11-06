@@ -6,8 +6,7 @@
   ...
 }:
 let
-  cfg = config.piano.image;
-  inherit (lib) mkDefault mkOption types;
+  inherit (lib) mkDefault;
   # Build the initial boot entry from the same system that populates root.
   bootFiles =
     pkgs.runCommand "piano-linux-boot-files"
@@ -15,7 +14,10 @@ let
         nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        python3 ${./make-boot-files.py} ${config.system.build.toplevel} "$out"
+        python3 ${./make-boot-files.py} ${config.system.build.toplevel} "$out" \
+          --timeout ${
+            if config.boot.loader.timeout == null then "menu-force" else toString config.boot.loader.timeout
+          }
       '';
 
   # make-ext4-fs supplies the closure and its registration database.
@@ -38,32 +40,22 @@ let
       {
         nativeBuildInputs = with pkgs; [
           android-tools
-          coreutils
           e2fsprogs
-          gnutar
-          python3
-          util-linux
         ];
       }
       ''
-        python3 ${./make-image.py} \
-          --boot-files ${bootFiles} \
-          --esp-image ${espImage} \
-          --root-filesystem ${rootFilesystem} \
-          --root-size-mib ${toString cfg.rootSizeMiB} \
-          --system ${config.system.build.toplevel} \
-          --output "$out"
+        mkdir -p "$out"
+
+        # Keep the closure-sized filesystem; NixOS grows it to the partition
+        # on first boot. No writable raw copy or second resize is needed.
+        e2fsck -f -n ${rootFilesystem}
+        img2simg ${rootFilesystem} "$out/root.sparse.img" 4096
+
+        # The ESP is already complete and checked. Reflink it where supported.
+        cp --reflink=auto ${espImage} "$out/esp.sparse.img"
       '';
 in
 {
-  options = {
-    piano.image.rootSizeMiB = mkOption {
-      type = types.ints.positive;
-      default = 16384;
-      description = "Size of the standalone ext4 validation image, in MiB.";
-    };
-  };
-
   config = {
     assertions = [
       {
@@ -106,7 +98,7 @@ in
       configurationLimit = mkDefault 5;
       editor = false;
     };
-    boot.loader.timeout = mkDefault 15;
+    boot.loader.timeout = mkDefault 5;
     boot.loader.efi.efiSysMountPoint = "/boot";
     boot.loader.generic-extlinux-compatible.enable = false;
     boot.loader.efi.canTouchEfiVariables = false;

@@ -147,7 +147,7 @@ def validate_device_tree(path):
     )
 
 
-def write_entries(output, payloads, command_line, sort_key):
+def write_entries(output, payloads, command_line, sort_key, timeout):
     # The content hash lets the standard updater identify this initial entry
     # without inventing a generation number before a system profile exists.
     contents = (
@@ -159,13 +159,12 @@ def write_entries(output, payloads, command_line, sort_key):
     entry_path = "loader/entries/" + entry_name
     (output / entry_path).write_text(contents)
     (output / "loader/loader.conf").write_text(
-        "default nixos-*\ntimeout 0\neditor no\nauto-entries no\n"
+        f"default nixos-*\ntimeout {timeout}\neditor no\nauto-entries no\n"
         "auto-firmware no\nconsole-mode keep\n"
     )
-    return entry_path
 
 
-def write_manifest(output, system, entry_path, payloads, command_line):
+def write_manifest(output):
     files = {}
     for path in sorted(output.rglob("*")):
         if path.is_file():
@@ -174,23 +173,11 @@ def write_manifest(output, system, entry_path, payloads, command_line):
                 "sha256": digest(path),
             }
 
-    manifest = {
-        "schemaVersion": 1,
-        "system": str(system),
-        "entry": entry_path,
-        "payloads": payloads,
-        "commandLine": command_line,
-        "files": files,
-    }
-    manifest_path = output / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    files["manifest.json"] = {"sha256": digest(manifest_path)}
-    (output / "SHA256SUMS").write_text(
-        "".join(f"{info['sha256']}  {name}\n" for name, info in files.items())
-    )
+    # This internal manifest is used only for FAT readback verification.
+    (output / "manifest.json").write_text(json.dumps({"files": files}, indent=2) + "\n")
 
 
-def build(system, output):
+def build(system, output, timeout):
     system = system.resolve(strict=True)
     boot, extension = read_bootspec(system)
     command_line = kernel_options(boot)
@@ -207,16 +194,17 @@ def build(system, output):
     validate_initrd(output / payloads["initrd"])
     validate_device_tree(output / payloads["devicetree"])
 
-    entry_path = write_entries(output, payloads, command_line, sort_key)
-    write_manifest(output, system, entry_path, payloads, command_line)
+    write_entries(output, payloads, command_line, sort_key, timeout)
+    write_manifest(output)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("system", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--timeout", required=True)
     args = parser.parse_args()
-    build(args.system, args.output)
+    build(args.system, args.output, args.timeout)
 
 
 if __name__ == "__main__":
