@@ -18,7 +18,6 @@ in
     ./runtime.nix
     ./audio.nix
     ./camera.nix
-    ./video.nix
     ./gnome.nix
     ./fingerprint.nix
     ./sensors.nix

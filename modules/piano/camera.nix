@@ -9,12 +9,9 @@ let
   camera = pianoPackages.camera;
 in
 {
-  nixpkgs.overlays = [
-    (final: previous: {
-      pipewire = final.callPackage ../../packages/pipewire {
-        pipewire = previous.pipewire;
-      };
-    })
+  # Use the repaired GStreamer plugin with the distribution's desktop libraries.
+  environment.sessionVariables.GST_PLUGIN_PATH_1_0 = [
+    "${pianoPackages.pipewire}/lib/gstreamer-1.0"
   ];
 
   # These virtual devices have no physical alias to trigger module loading.

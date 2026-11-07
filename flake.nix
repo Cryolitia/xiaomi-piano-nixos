@@ -55,6 +55,7 @@
         in
         {
           kernel = piano.kernel;
+          ffmpeg = piano.ffmpeg;
           firmware = piano.firmware;
           device-tree = piano.deviceTree;
           gnome-image = configurations.piano-gnome.config.system.build.pianoImage;
