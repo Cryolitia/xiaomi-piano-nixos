@@ -1,6 +1,6 @@
 { }:
 # Shared hardware policy is read during evaluation, before a builder is needed.
 builtins.fetchTarball {
-  url = "https://github.com/Cryolitia-Forks/Project-SunUEFI/archive/dd7735c07cb5736f9810075535387c25d6a1e2d8.tar.gz";
-  sha256 = "sha256-QxRj4wGPKmgeZ8HVBvD9hTxw5USKS3tTp/2eapBxeVk=";
+  url = "https://github.com/Cryolitia-Forks/Project-SunUEFI/archive/cf8530c75c17e1f1982e04eb730ceaebfda405b5.tar.gz";
+  sha256 = "sha256-9lSacUbheoy18L0WGd8+jbhkyE6Av8l6Cnzz5jXFlEk=";
 }
