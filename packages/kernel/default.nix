@@ -68,8 +68,7 @@ let
       ./patches/nanosic-tablet-mode-switch.patch
       ./patches/cpufreq-scmi-piano-boost-default.patch
       ./patches/rpmsg-channel-modalias-fallback.patch
-      ./patches/pcie-qcom-power-before-phy.patch
-      ./patches/qmp-pcie-honor-skip-bcr.patch
+      ./patches/pcie-qcom-phy-reset-sequence.patch
       ./patches/pmic-glink-altmode-freezable.patch
     ];
     postPatch = ''

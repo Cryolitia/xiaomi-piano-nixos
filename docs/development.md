@@ -46,7 +46,7 @@ SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和
 
 设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。`modules/piano/gnome.nix` 将用户会话和 GDM 登录页的电源键动作设为 GNOME 原生的 `suspend`。短按电源键通过 logind 挂起系统；仅熄屏而系统仍运行时也执行这一动作。成功恢复后，GNOME 会暂时忽略电源键，避免唤醒时上报的同次按键再次触发挂起。
 
-系统挂起独立于屏幕灭屏。PCIe PHY 的 `piano_skip_bcr` 同时约束初始化、错误回收和退出；PMIC GLINK altmode worker 使用上游的 freezable workqueue 修复，避免在设备恢复前访问 Type-C 硬件。该修复不覆盖 UCSI 到 DWC3 的同步角色通知路径。调试闹钟应按 `/sys/class/rtc/rtc*/name` 选择 `rtc-pm8xxx` 对应设备；清醒状态的闹钟中断不能证明 deep 挂起能恢复。[上游 GLINK 修复](https://github.com/torvalds/linux/commit/c7c56b6ec077cb96657494b8c18c2c78625035b1)
+系统挂起独立于屏幕灭屏。PCIe 在 PHY 和控制器时钟均已开启后完成 RC／PHY 复位，再启动 PHY 并配置 PARF。挂起时先停止 PHY，再撤销控制器、PHY 和端点资源；PMIC GLINK altmode worker 使用上游的 freezable workqueue 修复，避免在设备恢复前访问 Type-C 硬件。该修复不覆盖 UCSI 到 DWC3 的同步角色通知路径。调试闹钟应按 `/sys/class/rtc/rtc*/name` 选择 `rtc-pm8xxx` 对应设备；清醒状态的闹钟中断不能证明 deep 挂起能恢复。[上游 GLINK 修复](https://github.com/torvalds/linux/commit/c7c56b6ec077cb96657494b8c18c2c78625035b1)
 
 传感器使用 FastRPC、libssc 和标准 SensorProxy。导入程序读取 GPT 活动槽位，通过 liblp 校验 super 元数据，再建立只读 ODM/vendor 映射、只读挂载 persist 并复制同机配置与校准数据。服务按 ADSP、配置导入、sensors PD、SensorProxy 的顺序启动。`hardware.sensor.iio.enable = false` 关闭整条 SSC 服务链；板载 SSC 不使用内核未提供的 `hid-sensor-hub`，只对该 initrd 模块作逐项排除，其余缺失模块仍会阻止构建。
 
