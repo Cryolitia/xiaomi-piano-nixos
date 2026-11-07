@@ -9,6 +9,14 @@ let
   camera = pianoPackages.camera;
 in
 {
+  nixpkgs.overlays = [
+    (final: previous: {
+      pipewire = final.callPackage ../../packages/pipewire {
+        pipewire = previous.pipewire;
+      };
+    })
+  ];
+
   # These virtual devices have no physical alias to trigger module loading.
   # CAMSS, the sensors and their suppliers use ordinary OF deferred probing.
   # The shared daemon and loopback module use the same format handoff.
