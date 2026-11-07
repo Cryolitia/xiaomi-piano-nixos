@@ -23,5 +23,12 @@ pipewire.overrideAttrs (old: {
       url = "https://github.com/PipeWire/pipewire/commit/97699d707df374773fe5d6e32ea7362ef8dcf51b.patch";
       hash = "sha256-B9TLP0GTP+oNgobLWxkDUrnOekDeLmSkTRDuKLpDc+8=";
     })
+    # Copy borrowed MemPtr chunks before their PipeWire mappings disappear.
+    # Recycling uses the upstream thread-loop -> pool locking order.
+    (fetchurl {
+      url = "https://github.com/PipeWire/pipewire/commit/765e628cb2ad2153cf6adc581262da7abd0d9213.patch";
+      hash = "sha256-VnfmTYqoIGQkBCiSuS5w6l3vpAToHRwYRnyy6Tqh9es=";
+    })
+    ./patches/copy-memptr-buffers.patch
   ];
 })
