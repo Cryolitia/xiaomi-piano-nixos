@@ -5,6 +5,7 @@
   fetchzip,
   writeText,
   applyPatches,
+  linuxHeaders,
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
 }:
 
@@ -50,8 +51,13 @@ stdenv.mkDerivation (
   {
     pname = "piano-fingerprint";
     version = "1";
+    outputs = [
+      "out"
+      "dev"
+    ];
     src = sunuefiSrc;
     dontConfigure = true;
+    buildInputs = [ linuxHeaders ];
 
     postPatch = ''
       # The native client reads firmware itself. It cannot use the kernel's
@@ -66,25 +72,39 @@ stdenv.mkDerivation (
 
       # Match SunUEFI's existing client source set. Qualcomm supplies the
       # matching TEE UAPI headers; no Android libraries or HAL are linked.
-      "$CC" -O2 -D_GNU_SOURCE -DUSE_QCBOR -Wa,--noexecstack \
-        -I${qtee}/libqcomtee/include -I${qtee}/libqcomtee/src \
-        -I${mink}/libminkadaptor/include -I${mink}/libminkadaptor/src \
-        -I${mink}/listeners/libfsservice/gpfs \
-        -I${mink}/listeners/libfsservice/fs -I${mink}/listeners/libfsservice/cmn \
-        -I${qcbor}/inc \
-        ${qtee}/libqcomtee/src/qcomtee_object.c \
-        ${qtee}/libqcomtee/src/objects/credentials_obj.c \
-        ${qtee}/libqcomtee/src/objects/mem_obj.c \
-        ${mink}/libminkadaptor/src/mink_adaptor.c \
-        ${mink}/libminkadaptor/src/supplicant.c \
-        ${mink}/libminkadaptor/src/syscall.S \
-        ${qcbor}/src/UsefulBuf.c ${qcbor}/src/qcbor_encode.c \
-        ${qcbor}/src/qcbor_decode.c ${qcbor}/src/qcbor_err_to_str.c \
-        ${qcbor}/src/ieee754.c \
-        linux/userspace/fingerprint/piano-goodix-storage.c \
-        linux/userspace/fingerprint/piano-goodix-events.c \
-        linux/userspace/fingerprint/piano-goodix.c \
-        -pthread -lm -o piano-fingerprint-ctl
+      includes=(
+        -I${qtee}/libqcomtee/include -I${qtee}/libqcomtee/src
+        -I${mink}/libminkadaptor/include -I${mink}/libminkadaptor/src
+        -I${mink}/listeners/libfsservice/gpfs
+        -I${mink}/listeners/libfsservice/fs -I${mink}/listeners/libfsservice/cmn
+        -I${qcbor}/inc -Ilinux/userspace/fingerprint
+      )
+      sources=(
+        ${qtee}/libqcomtee/src/qcomtee_object.c
+        ${qtee}/libqcomtee/src/objects/credentials_obj.c
+        ${qtee}/libqcomtee/src/objects/mem_obj.c
+        ${mink}/libminkadaptor/src/mink_adaptor.c
+        ${mink}/libminkadaptor/src/supplicant.c
+        ${mink}/libminkadaptor/src/syscall.S
+        ${qcbor}/src/UsefulBuf.c ${qcbor}/src/qcbor_encode.c
+        ${qcbor}/src/qcbor_decode.c ${qcbor}/src/qcbor_err_to_str.c
+        ${qcbor}/src/ieee754.c
+        linux/userspace/fingerprint/piano-goodix-storage.c
+        linux/userspace/fingerprint/piano-goodix-events.c
+        linux/userspace/fingerprint/piano-goodix-gatekeeper.c
+        linux/userspace/fingerprint/piano-goodix-operations.c
+        linux/userspace/fingerprint/piano-goodix-rpmb.c
+        linux/userspace/fingerprint/piano-goodix.c
+      )
+      mkdir objects
+      for source in "''${sources[@]}"; do
+        "$CC" -O2 -fPIC -D_GNU_SOURCE -DUSE_QCBOR -Wa,--noexecstack \
+          "''${includes[@]}" -c "$source" -o "objects/''${source##*/}.o"
+      done
+      "$AR" rcs libpiano-goodix.a objects/*.o
+      "$CC" -O2 "''${includes[@]}" \
+        linux/userspace/fingerprint/piano-goodix-cli.c \
+        libpiano-goodix.a -pthread -lm -o piano-fingerprint-ctl
 
       runHook postBuild
     '';
@@ -93,6 +113,19 @@ stdenv.mkDerivation (
       runHook preInstall
 
       install -Dm755 piano-fingerprint-ctl "$out/bin/piano-fingerprint-ctl"
+      install -Dm644 libpiano-goodix.a "$dev/lib/libpiano-goodix.a"
+      install -Dm644 linux/userspace/fingerprint/piano-goodix.h "$dev/include/piano-goodix.h"
+      mkdir -p "$dev/lib/pkgconfig"
+      cat > "$dev/lib/pkgconfig/piano-goodix.pc" <<EOF
+      prefix=$dev
+      libdir=$dev/lib
+      includedir=$dev/include
+      Name: piano-goodix
+      Description: Native Piano Goodix enrollment and authentication
+      Version: ${finalAttrs.version}
+      Libs: -L$dev/lib -lpiano-goodix -pthread -lm
+      Cflags: -I$dev/include
+      EOF
       mkdir -p "$out/share/piano-fingerprint/firmware"
       (
         cd ${firmware}
