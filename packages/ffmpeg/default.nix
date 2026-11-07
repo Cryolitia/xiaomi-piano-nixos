@@ -6,28 +6,29 @@
 }:
 
 let
-  # Copy only the codec patches, so unrelated shared-source changes do not
-  # invalidate this package.
-  patchDirectory = builtins.path {
-    path = sunuefiSrc + "/linux/bsp/patches/ffmpeg";
-    name = "piano-ffmpeg-patches";
-  };
-  seriesName =
+  seriesFile =
     {
-      "7" = "series.json";
-      "9" = "series-9.json";
+      "7" = "linux/bsp/patches/ffmpeg/series.json";
+      "9" = "patches/ffmpeg/9.0.2/series.json";
     }
     .${lib.versions.major ffmpeg.version};
-  series = builtins.fromJSON (builtins.readFile (patchDirectory + "/${seriesName}"));
+  seriesPath = sunuefiSrc + "/${seriesFile}";
+  series = builtins.fromJSON (builtins.readFile seriesPath);
+
+  # Resolve entries beside their manifest, including shared older patches.
+  # Import each patch separately so unrelated source changes do not rebuild FFmpeg.
   checkedPatch =
     entry:
     let
-      path = patchDirectory + "/${entry.path}";
+      path = builtins.dirOf seriesPath + "/${entry.path}";
     in
     assert lib.assertMsg (
       builtins.hashFile "sha256" path == entry.sha256
     ) "Piano FFmpeg patch hash mismatch: ${entry.path}";
-    path;
+    builtins.path {
+      inherit path;
+      name = builtins.baseNameOf entry.path;
+    };
 in
 assert lib.assertMsg (
   ffmpeg.version == series.upstream_version

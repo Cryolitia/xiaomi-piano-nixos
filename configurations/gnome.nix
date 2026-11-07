@@ -41,6 +41,8 @@ in
   services.libinput.enable = true;
   services.power-profiles-daemon.enable = true;
   services.openssh.enable = true;
+  # Keep remote diagnostics usable while the fingerprint reader is busy.
+  security.pam.services.sshd.fprintAuth = false;
 
   users.users.${defaultUser} = installationDefaults.users.users.${defaultUser} // {
     # Clear the upstream empty hash so the initial SSH password takes effect.

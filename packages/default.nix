@@ -10,9 +10,7 @@ in
   firmware = pkgs.callPackage ./firmware { };
   fingerprint = pkgs.callPackage ./fingerprint { };
   deviceTree = pkgs.callPackage ./device-tree { };
-  camera = pkgs.callPackage ./camera {
-    inherit (bsp) debianPianoSrc;
-  };
+  camera = pkgs.callPackage ./camera { };
   sensors = pkgs.callPackage ./sensors { };
   mesa = pkgs.callPackage ./mesa { };
 }

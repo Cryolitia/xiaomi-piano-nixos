@@ -11,7 +11,12 @@ in
 {
   # These virtual devices have no physical alias to trigger module loading.
   # CAMSS, the sensors and their suppliers use ordinary OF deferred probing.
-  boot.extraModulePackages = [ config.boot.kernelPackages.v4l2loopback ];
+  # The shared daemon and loopback module use the same format handoff.
+  boot.extraModulePackages = [
+    (config.boot.kernelPackages.v4l2loopback.overrideAttrs (old: {
+      patches = (old.patches or [ ]) ++ camera.loopbackPatches;
+    }))
+  ];
   boot.kernelModules = [ "v4l2loopback" ];
   boot.extraModprobeConfig = camera.loopbackOptions;
 
