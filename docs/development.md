@@ -36,6 +36,8 @@ ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，�
 
 相机包直接构建共享的 C/Make 与 Rust 全幅转换代码。后摄支持 3840×2160/60 fps；8160×6120 全幅 RAW10 经软件转换输出，当前平板约 0.4 fps。`piano-camera-ctl capture rear --flash --output photo.jpg` 提供后摄 PIX 模式的同步 JPEG 拍照；前摄和全幅 RDI 不接受闪光请求，普通视频应用不会自动调用该功能。完整模式表与时序限制见[共享相机说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/camera-controls.md)。
 
+SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和硬件地址单位一致；虚拟摄像头报告当前画面的裁剪边界和默认尺寸。PipeWire overlay 回补首选格式转换、稳定重协商及缓冲区回收锁顺序修复，并在交给 GStreamer 下游前复制借用的 `MemPtr` 数据，避免格式切换移除映射后仍访问旧帧；FD-backed 缓冲区保留共享路径。
+
 FFmpeg 的硬件编解码补丁通过设备模块的 nixpkgs overlay 应用于 FFmpeg 7、9 的普通、headless、full 变体及默认别名，保留各包原有源码与构建选项。使用这些库的包得到同一套修复；自行内置编解码库的应用仍由其自身构建决定。当前媒体设备树会同时启用 CAMCC、CAMBIST；同 SoC 的显示灭屏复位报告尚无确定驱动修复，不能用仅枚举出摄像头来代替采集与灭屏恢复验证。[上游原始报告](https://lists.openwall.net/linux-kernel/2026/10/12/599)
 
 ## 显示、传感器与无线身份
