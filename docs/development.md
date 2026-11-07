@@ -34,6 +34,8 @@ ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，�
 
 相机和视频设备沿用普通 modalias 与延迟探测。CAMSS 和 Iris 在内核中选择 DMA 映射域；不再由启动脚本修改 IOMMU group。`v4l2loopback` 随同一代内核构建，常驻 C 程序 `piano-camerad` 负责传感器曝光、白平衡、对焦和 ISP 输出，向 PipeWire 发布前后摄像头；应用关闭后停止采集。服务以 root/video 运行，控制 socket 只供 video 组访问。WirePlumber 隐藏内部 CAMSS 入口，避免同时出现原始 ISP 与对外摄像头。
 
+相机包直接构建共享的 C/Make 与 Rust 全幅转换代码。后摄支持 3840×2160/60 fps；8160×6120 全幅 RAW10 经软件转换输出，当前平板约 0.4 fps。`piano-camera-ctl capture rear --flash --output photo.jpg` 提供后摄 PIX 模式的同步 JPEG 拍照；前摄和全幅 RDI 不接受闪光请求，普通视频应用不会自动调用该功能。完整模式表与时序限制见[共享相机说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/camera-controls.md)。
+
 FFmpeg 的硬件编解码补丁通过设备模块的 nixpkgs overlay 应用于 FFmpeg 7、9 的普通、headless、full 变体及默认别名，保留各包原有源码与构建选项。使用这些库的包得到同一套修复；自行内置编解码库的应用仍由其自身构建决定。当前媒体设备树会同时启用 CAMCC、CAMBIST；同 SoC 的显示灭屏复位报告尚无确定驱动修复，不能用仅枚举出摄像头来代替采集与灭屏恢复验证。[上游原始报告](https://lists.openwall.net/linux-kernel/2026/10/12/599)
 
 ## 显示、传感器与无线身份
@@ -48,7 +50,7 @@ FFmpeg 的硬件编解码补丁通过设备模块的 nixpkgs overlay 应用于 F
 
 GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程序。自动旋转需要未锁定方向、有效加速度计和内置屏幕，并遵循 GNOME 的触摸模式策略：Nanosic 键盘 MCU 的持久输入设备把 `keyboard_attached` 转为标准 `SW_TABLET_MODE`，取下键盘为平板模式，装回后退出。键盘和触控板的 HID 设备移除时，这个模式开关仍保留。
 
-指纹模块注册 QTEE/UIO 控制接口，提供 `piano-fingerprint-ctl` 的现有初始化和事件诊断命令。签名 TA 与模型按清单校验，供客户端读取的副本保留未压缩形式，不改变其他内核固件的压缩策略。GNOME 指纹录入和解锁尚未接入：Piano 的 `gfpia` 需要真实 HAT 验签及 QTEE 协议支持，现有面向旧 QSEECOM 的 Goodix libfprint 后端不能直接使用。后续还需 Linux 独立的 Gatekeeper/HAT 签发、FTS 文件服务隔离和完整录入、匹配、保存、取消流程；给 TA 传入 Linux 目录本身不能证明存储已隔离。初始化也有持久化请求，因此原生客户端命令不能当作严格只读采集。[参考后端及协议研究](https://github.com/wrobelda/goodix-fp-spi-linux)
+指纹通过原生 QTEE 客户端和 libfprint 平台驱动接入标准 fprintd、GNOME 账户设置及 PAM，支持 Linux 独立录入、持久保存、验证、删除和取消。签名 TA 与模型按共享清单校验，供客户端读取的副本保留未压缩形式。原生实现使用独立的 Gatekeeper UID、凭据和模板，状态保存在 `/var/lib/piano-goodix/<LinuxUID>/`，不读取或复制 Android 指纹模板。独立凭据的建立与授权录入使用原厂 Keymaster 和真实 HAT；RPMB 与 Android 共用，Linux UID 隔离不代表独立的物理安全存储。硬件访问由标准 fprintd 管理，GNOME 验证配置关闭 SSH 的指纹认证，保留密码登录。协议和存储边界见[共享指纹实现说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/led-ir-fingerprint.md)。
 
 板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙初始化复用现有 MGMT 程序：优先读取只读 persist 的原厂公共地址，缺失时才从 SoC 身份派生稳定地址，不写原厂分区。
 
