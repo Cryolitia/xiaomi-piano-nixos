@@ -36,12 +36,6 @@ let
       "${source}/patches/libssc/0001-fix-sensor-property-types.patch"
       "${source}/patches/libssc/0002-raw-vector-reports.patch"
       "${source}/patches/libssc/0003-piano-ssc-vector-cli.patch"
-      "${source}/patches/libssc/0004-metadata-discovery.patch"
-    ];
-    doCheck = true;
-    mesonCheckFlags = [
-      "--setup=metadata"
-      "tests-discovery"
     ];
   });
   sensorProxy = (iio-sensor-proxy.override { libssc = ssc; }).overrideAttrs (old: {
