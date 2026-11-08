@@ -64,6 +64,8 @@ nix-store --add-fixed sha256 p81-35-qdcm.json
 
 软件包校验输入摘要并使用公开的 KTZ8866 背光映射生成配置，固定 ICC 时间戳和标识，最终只安装两份 ICC。它是跨架构共用的固定输出，可在本机生成后用 `nix copy` 发送成品到构建机，无需发送原厂 JSON。亮度来自原厂模型，压缩曲线的误差不包括原厂量化歧义或面板物理测量误差。
 
+BOE 实机已通过 GNOME HDR 开关、灰阶与彩色测试图、窗口与全屏切换、亮度调整。mpv 在 Adreno 830v1 上使用十位 HDR10 Vulkan swapchain，接收 PQ／BT.2020 及 P3 目标色域，活动 KMS 帧缓冲为 `XR30`。最大背光 `2047` 时，Wayland 反馈的目标峰值为取整后的 778 nit，SDR 白点为 203 nit；这是校准模型的协议反馈，不是亮度计测量。
+
 设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件：原厂 120/60、90/50/48/30、144 分属三组时序和 DDIC 配置，不能把全局最低的 30 Hz 当作 120 Hz 时序的连续下限。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)
 
 设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。`modules/piano/gnome.nix` 将用户会话和 GDM 登录页的电源键动作设为 GNOME 原生的 `suspend`。短按电源键通过 logind 挂起系统；仅熄屏而系统仍运行时也执行这一动作。成功恢复后，GNOME 会暂时忽略电源键，避免唤醒时上报的同次按键再次触发挂起。
