@@ -33,6 +33,22 @@ in
 
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
+
+  # GNOME 50's finger selector can exceed a tablet dialog's height. Reuse
+  # Ubuntu's scrollable popover fix until the redesigned UI reaches nixpkgs.
+  nixpkgs.overlays = [
+    (final: previous: {
+      gnome-control-center = previous.gnome-control-center.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          (final.fetchurl {
+            url = "https://salsa.debian.org/gnome-team/gnome-control-center/-/raw/a84ca92d6fd960500e85b1d4f7840c57378203d6/debian/patches/ubuntu/system-users-Keep-fingerprint-add-print-popover-visible-w.patch";
+            hash = "sha256-A2IQ5mF1j045hfVwJtxV1x7bV/9TP7AnwIWURscjCe4=";
+          })
+        ];
+      });
+    })
+  ];
+
   services.displayManager.autoLogin = {
     enable = true;
     user = defaultUser;
