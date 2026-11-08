@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pianoPackages,
   ...
 }:
 
@@ -15,6 +16,18 @@ let
 in
 {
   config = lib.mkIf config.services.desktopManager.gnome.enable {
+    # The internal panel consumes calibrated RGB rather than a PQ wire signal.
+    # Mutter selects its factory ICC from the panel's OF compatible string.
+    nixpkgs.overlays = [
+      (final: previous: {
+        mutter = final.callPackage ../../packages/mutter {
+          mutter = previous.mutter;
+        };
+      })
+    ];
+    environment.systemPackages = [ pianoPackages.displayColor ];
+    environment.pathsToLink = [ "/share/color/icc" ];
+
     # Keep screen blanking and locking on AC; suspend automatically on battery.
     programs.dconf.profiles = {
       user.databases = [ powerDatabase ];
