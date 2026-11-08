@@ -44,6 +44,26 @@ SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和
 
 ## 显示、传感器与无线身份
 
+GNOME 的内屏 HDR 路径使用面板原厂静态校准生成的 ICC 配置。`packages/display-color/generate.py` 将 QDCM 的输入曲线、三维色域表和输出曲线转换为 LittleCMS 管理的标准 ICC；动态色调映射由 Mutter 完成，不从 Android 复制播放器或安全存储。BOE `p81_42_02_0a` 与 CSOT `p81_35_02_0b` 分别生成一份配置，按内核面板的 OF compatible 自动选择。
+
+`packages/mutter/patches/native-hdr-profiles.patch` 为原生 RGB 面板增加显式亮度的 ICC 输出状态，使用 FP16 线性 BT.2020 合成和十位输出。PQ 输入复用 Mutter 的解析转换；面板端保留 ICC 矩阵、一维曲线和三维色域表的处理顺序，避免小型三维查找表丢失近黑精度。Wayland 客户端使用 PQ／BT.2020 工作空间，Mutter 再转换到面板的校准 RGB；DRM 不声明面板直接接收 PQ，也不伪造 EDID。背光变化会更新亮度模型，ICC 数据和转换在同一面板上复用。该包只在设备模块与 GNOME 同时启用时覆盖 Mutter，沿用 GNOME 的显示设置开关；不强制开启 HDR，也不新增服务。
+
+首次从源码构建显示配置，需要从 `OS3.0.304.0.WPYMIXM` 的只读系统镜像取得两份通用文件。文件来自 `/odm/etc/display/`，不使用单台设备的校准区：
+
+| 原厂文件 | 本地名称 |
+| --- | --- |
+| `qdcm_calib_data_xiaomi_p81_42_02_0a_vid_mode_dualdsi_dsc_panel.json` | `p81-42-qdcm.json` |
+| `qdcm_calib_data_xiaomi_p81_35_02_0b_vid_mode_dualdsi_dsc_panel.json` | `p81-35-qdcm.json` |
+
+将它们加入本机构建存储后，正常构建 GNOME 系统即可：
+
+```sh
+nix-store --add-fixed sha256 p81-42-qdcm.json
+nix-store --add-fixed sha256 p81-35-qdcm.json
+```
+
+软件包校验输入摘要并使用公开的 KTZ8866 背光映射生成配置，固定 ICC 时间戳和标识，最终只安装两份 ICC。它是跨架构共用的固定输出，可在本机生成后用 `nix copy` 发送成品到构建机，无需发送原厂 JSON。亮度来自原厂模型，压缩曲线的误差不包括原厂量化歧义或面板物理测量误差。
+
 设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件：原厂 120/60、90/50/48/30、144 分属三组时序和 DDIC 配置，不能把全局最低的 30 Hz 当作 120 Hz 时序的连续下限。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)
 
 设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。`modules/piano/gnome.nix` 将用户会话和 GDM 登录页的电源键动作设为 GNOME 原生的 `suspend`。短按电源键通过 logind 挂起系统；仅熄屏而系统仍运行时也执行这一动作。成功恢复后，GNOME 会暂时忽略电源键，避免唤醒时上报的同次按键再次触发挂起。
