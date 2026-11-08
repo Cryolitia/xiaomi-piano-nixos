@@ -44,6 +44,6 @@
   boot.extraModprobeConfig = ''
     options msm separate_gpu_kms=1
     options hci_uart piano_retries=0 piano_peri=106
-    options piano_mca charge_policy=1 hv_charge=1 charge_current=1 pan_ack=0 mipps_auth=0 cp_charge=0
+    options piano_mca charge_policy=1 hv_charge=1 charge_current=1 pan_ack=0 mipps_auth=1 cp_charge=1
   '';
 }

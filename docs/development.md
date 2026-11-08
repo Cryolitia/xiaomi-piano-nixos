@@ -30,6 +30,8 @@ initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplu
 
 蓝牙电源序列尚未就绪时保留 `-EPROBE_DEFER`；没有 OF compatible 的 RPMsg 通道使用标准通道别名加载驱动。CPU boost 在 Piano 的 SCMI cpufreq 驱动注册时默认启用，沿用原有 thermal 和 QoS 限制。MCA 是板载电源端点的唯一驱动，内核排除匹配同一 GLINK 端点的 BATTMGR；充电参数通过标准 modprobe 配置提供。
 
+默认启用 MiPPS 认证与 SC8541 电荷泵直充，由内核按 PPS 电源能力、电芯温度和电压决定是否进入直充。直充输入电流目标上限为 4 A，两电芯合计充电电流目标上限为 8 A，仍受温控和电源能力限制。挂起先确认电荷泵停止，恢复后重新检查充电条件；拔线会清除固件认证状态。内核同时提供电荷泵硬件看门狗和软件超时保护，无需额外用户态服务。
+
 ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙缺失的本机公共地址由 BlueZ 启动前的标准 MGMT 操作补齐，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
 相机和视频设备沿用普通 modalias 与延迟探测。CAMSS 和 Iris 在内核中选择 DMA 映射域；不再由启动脚本修改 IOMMU group。`v4l2loopback` 随同一代内核构建，常驻 C 程序 `piano-camerad` 负责传感器曝光、白平衡、对焦和 ISP 输出，向 PipeWire 发布前后摄像头；应用关闭后停止采集。服务以 root/video 运行，控制 socket 只供 video 组访问。WirePlumber 隐藏内部 CAMSS 入口，避免同时出现原始 ISP 与对外摄像头。
