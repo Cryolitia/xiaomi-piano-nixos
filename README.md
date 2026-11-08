@@ -27,16 +27,18 @@ nixosConfigurations.tablet = nixpkgs.lib.nixosSystem {
 };
 ```
 
-固件包含专有二进制，需要在自己的配置中允许该固件包：
+固件和面板校准包含专有数据，需要在自己的配置中允许这些包：
 
 ```nix
 nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem (lib.getName pkg) [ "piano-firmware" "piano-fingerprint" ];
+  builtins.elem (lib.getName pkg) [ "piano-firmware" "piano-fingerprint" "piano-display-color" ];
 ```
 
 当前改装机将 `hardware.xiaomi.piano.memoryGiB` 设为 `24`。目前提供 16 GB 原厂基准和当前实机已核对的 24 GB 布局；8 GB、12 GB 及其他未取得设备树依据的容量会被拒绝，避免套用错误的内存范围。此选项不修改分区大小。
 
 触摸屏默认只启用手指输入。需要使用笔时，设置 `hardware.xiaomi.piano.pen.enable = true;`，同时启用笔输入和笔的蓝牙配置；默认值为 `false`。
+
+启用 GNOME 后，可在“设置 → 显示”开启 HDR。模块自动选择面板校准，支持十位输出及随背光更新的 HDR 亮度；从源码构建前的校准文件准备见[开发说明](docs/development.md#显示传感器与无线身份)。
 
 ## 构建 GNOME 验证镜像
 
