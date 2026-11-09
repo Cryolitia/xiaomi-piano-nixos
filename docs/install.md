@@ -2,9 +2,9 @@
 
 验证镜像用于已经安装 SunUEFI、已有 `sunuefi_esp` 和 `sunuefi_root` 的 piano。启动镜像（ESP）包含 systemd-boot、EFI-stub 内核、initrd 和设备树；系统镜像（root）包含 NixOS。首次安装需要写入同一次构建的两份镜像。
 
-启动前，先安装 [SunUEFI 主分支](https://github.com/Cryolitia-Forks/Project-SunUEFI) 提供的、支持完整 EFI 内存图、设备树修正、内核退出流程和扩展输入协议的引导助手构建。支持这些功能的核心已包含在本项目固定的 SunUEFI 来源中；只有 128 MiB raw 启动支持的旧固件需要更新。引导助手更新的是 Android BOOT 中的 UEFI 核心，本项目的 ESP 不包含核心，更新源码或 ESP 不能替代固件更新。
+启动前，先通过 [SunUEFI 主分支](https://github.com/Cryolitia-Forks/Project-SunUEFI) 的引导助手更新 UEFI 核心，确保它支持完整 EFI 内存图、标准设备树内存修正、内核退出流程和扩展输入协议。支持这些功能的核心已包含在本项目固定的 SunUEFI 来源中。引导助手更新的是 Android BOOT 中的 UEFI 核心，本项目的 ESP 不包含核心，更新 NixOS 源码或 ESP 不能替代固件更新。
 
-设备树按 `hardware.xiaomi.piano.memoryGiB` 保留 16 GB 原厂基准和 24 GB 改装布局，以兼容需要正确静态内存表的旧版标准 EFI 固件。新版 SunUEFI 会用本次 ABL 提供的内存范围和 DDR 信息回填设备树，并补充面板、Gunyah、蓝牙地址和 RTC 数据。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。仅更新 UEFI 核心时保留现有 NixOS ESP；不要用其他发行版的 ESP 覆盖它。
+同一个镜像使用统一的工厂基准设备树，SunUEFI 根据本次 ABL 提供的实际内存范围和 DDR 信息回填设备树，并补充面板、Gunyah、蓝牙地址和 RTC 数据。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。仅更新 UEFI 核心时保留现有 NixOS ESP；不要用其他发行版的 ESP 覆盖它。
 
 ## 构建
 
@@ -12,12 +12,11 @@
 
 ```sh
 nix build .#gnome-image
-# 24 GB 改装机使用 .#gnome-24gb-image
 ```
 
-其他架构的电脑需要配置 ARM64 Nix builder，并使用完整输出名，例如 `nix build .#packages.aarch64-linux.gnome-24gb-image`。
+其他架构的电脑需要配置 ARM64 Nix builder，并使用完整输出名，例如 `nix build .#packages.aarch64-linux.gnome-image`。
 
-选择一个镜像入口运行一次 `nix build`，同一个 `result/` 中会同时得到两份配套镜像：
+运行一次 `nix build`，同一个 `result/` 中会同时得到两份配套镜像：
 
 | 文件 | 用途 |
 | --- | --- |

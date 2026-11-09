@@ -7,17 +7,12 @@
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
   panel ? "auto",
   boardDtb ? null,
-  memoryGiB ? 16,
 }:
 
 assert builtins.elem panel [
   "auto"
   "boe"
   "csot"
-];
-assert builtins.elem memoryGiB [
-  16
-  24
 ];
 stdenvNoCC.mkDerivation {
   pname = "piano-device-tree";
@@ -34,8 +29,7 @@ stdenvNoCC.mkDerivation {
     # The adapter supplies Nix paths; all board data and transforms follow
     # the pinned SunUEFI source.
     python3 ${./build.py} ${sunuefiSrc} ${panel} \
-      ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")} \
-      ${toString memoryGiB}
+      ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")}
 
     runHook postBuild
   '';
