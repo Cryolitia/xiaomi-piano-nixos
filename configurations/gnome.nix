@@ -54,7 +54,6 @@ in
   };
   services.gnome.gnome-keyring.enable = true;
   services.libinput.enable = true;
-  services.power-profiles-daemon.enable = true;
   services.openssh.enable = true;
   # Keep remote diagnostics usable while the fingerprint reader is busy.
   security.pam.services.sshd.fprintAuth = false;
