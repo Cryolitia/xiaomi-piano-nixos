@@ -2,7 +2,9 @@
 
 验证镜像用于已经安装 SunUEFI、已有 `sunuefi_esp` 和 `sunuefi_root` 的 piano。启动镜像（ESP）包含 systemd-boot、EFI-stub 内核、initrd 和设备树；系统镜像（root）包含 NixOS。首次安装需要写入同一次构建的两份镜像。
 
-设备树按 `hardware.xiaomi.piano.memoryGiB` 选择已有依据的内存布局。16 GB 使用原厂基准，24 GB 使用当前实机已核对的改装布局；systemd-boot 加载这份设备树，SunUEFI 通过标准修正协议补充本次启动的面板和 Gunyah 参数。启动前需安装支持标准 EFI 内存图、设备树修正和内核退出流程的 SunUEFI；只有 128 MiB raw 启动支持的旧固件仍需更新。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。
+启动前，先安装 [SunUEFI 主分支](https://github.com/Cryolitia-Forks/Project-SunUEFI) 提供的、支持完整 EFI 内存图、设备树修正、内核退出流程和扩展输入协议的引导助手构建。支持这些功能的核心已包含在本项目固定的 SunUEFI 来源中；只有 128 MiB raw 启动支持的旧固件需要更新。引导助手更新的是 Android BOOT 中的 UEFI 核心，本项目的 ESP 不包含核心，更新源码或 ESP 不能替代固件更新。
+
+设备树按 `hardware.xiaomi.piano.memoryGiB` 保留 16 GB 原厂基准和 24 GB 改装布局，以兼容需要正确静态内存表的旧版标准 EFI 固件。新版 SunUEFI 会用本次 ABL 提供的内存范围和 DDR 信息回填设备树，并补充面板、Gunyah、蓝牙地址和 RTC 数据。以下步骤写入已有的两个独立分区，不创建或调整分区，不刷写 Android 启动分区。仅更新 UEFI 核心时保留现有 NixOS ESP；不要用其他发行版的 ESP 覆盖它。
 
 ## 构建
 
@@ -68,7 +70,7 @@ fastboot -s SERIAL -S 128M flash sunuefi_esp result/esp.sparse.img
 fastboot -s SERIAL reboot
 ```
 
-在早期选择页进入 UEFI，再启动 Linux。systemd-boot 的菜单等待时间由 `boot.loader.timeout` 控制；通过 `nixos-rebuild` 安装多个版本后，可在此选择旧版本回退。音量键选择、短按电源确认需要 SunUEFI 0.5.10 或更新版本；旧版固件的扩展输入协议缺失，可能在按音量键后使菜单停止响应。系统自动登录 `nixos`，初始密码为 `nixos`。根文件系统通过 GPT 分区名 `sunuefi_root` 定位，由 NixOS 标准流程检查并自动扩展到现有分区大小，不修改 GPT。
+在早期选择页进入 UEFI，再启动 Linux。systemd-boot 的菜单等待时间由 `boot.loader.timeout` 控制；通过 `nixos-rebuild` 安装多个版本后，可在此选择旧版本回退。音量键选择、短按电源确认依赖前述构建提供的扩展输入协议；缺失该协议的旧核心可能在按音量键后使菜单停止响应。系统自动登录 `nixos`，初始密码为 `nixos`。根文件系统通过 GPT 分区名 `sunuefi_root` 定位，由 NixOS 标准流程检查并自动扩展到现有分区大小，不修改 GPT。
 
 连接 Wi-Fi 后，在网络设置中查看平板的 IP 地址。同一网络的电脑可通过 SSH 登录，命令中的 `TABLET_IP` 替换为该地址：
 

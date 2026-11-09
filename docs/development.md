@@ -1,13 +1,13 @@
 # 维护与验证
 
-硬件配置、可替换的软件包和验证镜像分别维护。设备模块只设置硬件所需默认值；桌面、用户、语言和磁盘策略放在 `configurations/` 和 `images/`。内存容量统一由 `hardware.xiaomi.piano.memoryGiB` 控制；板级设备树覆盖、内存布局和绑定修正统一放在 SunUEFI 的 `linux/dts/`、`config/memory-layouts/` 及共享构建工具中；本仓库仅选择容量并调用它们。
+硬件配置、可替换的软件包和验证镜像分别维护。设备模块只设置硬件所需默认值；桌面、用户、语言和磁盘策略放在 `configurations/` 和 `images/`。`hardware.xiaomi.piano.memoryGiB` 选择兼容旧固件的静态内存布局；板级设备树覆盖、内存布局和绑定修正统一放在 SunUEFI 的 `linux/dts/`、`config/memory-layouts/` 及共享构建工具中，本仓库调用这些工具。新版 UEFI 以本次 ABL 的内存表为准。
 
 ## 来源
 
 `flake.lock` 只固定 nixpkgs。内核、固件、BSP 和 Mesa 等包在各自定义中获取固定提交与 SHA256 的源码；多个包共用的 SunUEFI 来源统一维护在 `packages/sunuefi-source.nix`：
 
 - nixpkgs 提供 NixOS、GNOME、systemd-boot 和常规用户空间。
-- Linux 基线与 SunUEFI 的有序补丁共同组成 Piano 内核；补丁还按原 `series.json` 的 SHA256 校验。
+- Linux 7.3.3 基线与 SunUEFI 的有序补丁共同组成 Piano 内核；补丁按原 `series.json` 的 SHA256 校验，NixOS 只额外保留默认启用 CPU boost 的 SCMI 策略补丁。
 - SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM、固件覆盖清单，以及稀疏镜像打包工具。
 - debian-piano 提供板级初始化和音频拓扑构建来源；piano-firmware 提供设备固件。
 - piano-mesa 提供 A830v1 设备 ID 补丁；AudioReach 提供音频拓扑源码。
@@ -16,13 +16,13 @@
 
 ## 启动与硬件边界
 
-Linux 设备树的内存表由本项目按容量选择。启动链为 SunUEFI → systemd-boot → Linux EFI stub：systemd-boot 按标准 BLS 启动项加载匹配的内核、initrd 和设备树，命令行指向对应的 NixOS 系统。SunUEFI 通过标准设备树修正协议保留本次启动的面板、Gunyah 参数和内存预留，并在 `ExitBootServices` 时完成硬件退出。
+启动链为 SunUEFI → systemd-boot → Linux EFI stub：systemd-boot 按标准 BLS 启动项加载匹配的内核、initrd 和设备树，命令行指向对应的 NixOS 系统。`hardware.xiaomi.piano.memoryGiB` 仍选择 16／24 GiB 静态设备树，供旧版标准 EFI 固件使用；新版 SunUEFI 在 SEC 阶段依据本次 ABL 的内存表建立 EFI 描述，并通过标准设备树修正协议回填 RAM 范围、DDR 元数据、面板和 Gunyah 参数。内核 EFI 启动按 EFI 内存图接收 RAM，固件在 `ExitBootServices` 时完成硬件退出。静态设备树和编译检查均不能替代实际容量与高地址内存验证。
 
 ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。`loader/entries/nixos-*.conf` 使用 `linux`、`initrd`、`devicetree` 和 `options`；载荷使用 nixpkgs systemd-boot 模块的 `/EFI/nixos/<store 名称>-<文件名>.efi` 平铺布局。初始离线 ESP 从系统的 `boot.json` 及其设备树扩展生成入口；后续更新、代际选择和清理完全使用 NixOS 自带的 systemd-boot 模块。本项目不构建 UEFI 固件或 Android 模块。
 
 验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 只提供 `root.sparse.img` 和 `esp.sparse.img`。root 复用 nixpkgs `make-ext4-fs.nix` 生成的文件系统，按实际内容确定大小，首次启动时扩展到已有分区；打包阶段不再复制 raw root 或二次调整容量。两份镜像统一使用 `img2simg` 转换。启动载荷和读回校验所需清单只作为内部构建输入，ESP raw 文件在临时目录生成。镜像打包保留启动载荷的基本架构和格式检查，读回验证 FAT32 中的启动文件，并将 ESP 稀疏镜像展开后逐字节比较；运行时由标准模块消费每代 bootspec，`nixos-rebuild` 会连同设备树一起更新启动文件。
 
-标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理。只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
+标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理，systemd-boot 的音量键导航还需要扩展输入协议。所需核心由固定来源对应的 SunUEFI 引导助手交付，NixOS 构建不更新它；只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 
 initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplug 自动加载；stage2 使用同一套普通 modalias 机制。设备树表达时钟、电源域、GPIO 和 IOMMU 关系，驱动通过延迟探测等待资源。本项目不再修改 `80-drivers.rules`、设置板级模块黑名单或用专用服务加载存储、显示、键盘、声卡和无线模块。未适配设备在共享设备树中禁用；继承的 CoreSight 追踪节点按 Linux AMBA 外设 ID 识别并禁用，避免寄存器探测阻塞启动。媒体节点由共享构建策略选择，保留 SunUEFI 其他发行版已有的媒体能力。
 
@@ -32,7 +32,7 @@ initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplu
 
 默认启用 MiPPS 认证与 SC8541 电荷泵直充，由内核按 PPS 电源能力、电芯温度和电压决定是否进入直充。直充输入电流目标上限为 4 A，两电芯合计充电电流目标上限为 8 A，仍受温控和电源能力限制。挂起先确认电荷泵停止，恢复后重新检查充电条件；拔线会清除固件认证状态。内核同时提供电荷泵硬件看门狗和软件超时保护，无需额外用户态服务。
 
-ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙缺失的本机公共地址由 BlueZ 启动前的标准 MGMT 操作补齐，USB configfs 与 Type-C 插拔继续由原有服务处理。
+ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙使用内核注册的本机地址，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
 相机和视频设备沿用普通 modalias 与延迟探测。CAMSS 和 Iris 在内核中选择 DMA 映射域；不再由启动脚本修改 IOMMU group。`v4l2loopback` 随同一代内核构建，常驻 C 程序 `piano-camerad` 负责传感器曝光、白平衡、对焦和 ISP 输出，向 PipeWire 发布前后摄像头；应用关闭后停止采集。服务以 root/video 运行，控制 socket 只供 video 组访问。WirePlumber 隐藏内部 CAMSS 入口，避免同时出现原始 ISP 与对外摄像头。
 
@@ -44,27 +44,11 @@ SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和
 
 ## 显示、传感器与无线身份
 
-GNOME 的内屏 HDR 路径使用面板原厂静态校准生成的 ICC 配置。`packages/display-color/generate.py` 将 QDCM 的输入曲线、三维色域表和输出曲线转换为 LittleCMS 管理的标准 ICC；动态色调映射由 Mutter 完成，不从 Android 复制播放器或安全存储。BOE `p81_42_02_0a` 与 CSOT `p81_35_02_0b` 分别生成一份配置，按内核面板的 OF compatible 自动选择。
+GNOME 的内屏 HDR 使用标准 DRM 输出路径。Mutter 根据内核的 EDID／DisplayID、BT.2020 色彩空间和 HDR metadata 属性选择 PQ 输出，负责应用色彩转换、线性合成与面板峰值范围内的色调映射。DPU 使用 IGCv5 解码 PQ 或 Gamma 2.2，经 Gamut v4.3 完成 BT.2020 到 P3-D65 及原厂面板校准，再用 GCv2 转成面板的原生编码；DSI／DSC 保持十位传输。
 
-`packages/mutter/patches/native-hdr-profiles.patch` 为原生 RGB 面板增加显式亮度的 ICC 输出状态，使用 FP16 线性 BT.2020 合成和十位输出。PQ 输入复用 Mutter 的解析转换；面板端保留 ICC 矩阵、一维曲线和三维色域表的处理顺序，避免小型三维查找表丢失近黑精度。Wayland 客户端使用 PQ／BT.2020 工作空间，Mutter 再转换到面板的校准 RGB；DRM 不声明面板直接接收 PQ，也不伪造 EDID。背光变化会更新亮度模型，ICC 数据和转换在同一面板上复用。该包只在设备模块与 GNOME 同时启用时覆盖 Mutter，沿用 GNOME 的显示设置开关；不强制开启 HDR，也不新增服务。
+两份面板校准由 SunUEFI 的 `vendor/firmware/piano-display/manifest.json` 固定来源和摘要，通过固件包安装到 `lib/firmware/qcom/sm8750/piano-{boe,csot}-display.bin`。内核按实际面板 compatible 加载并校验数据，成功后才开放 HDR 属性；缺失或无效时继续普通 SDR 显示。峰值和黑位来自原厂模型，不是逐台光度测量。
 
-首次从源码构建显示配置，需要从 `OS3.0.304.0.WPYMIXM` 的只读系统镜像取得两份通用文件。文件来自 `/odm/etc/display/`，不使用单台设备的校准区：
-
-| 原厂文件 | 本地名称 |
-| --- | --- |
-| `qdcm_calib_data_xiaomi_p81_42_02_0a_vid_mode_dualdsi_dsc_panel.json` | `p81-42-qdcm.json` |
-| `qdcm_calib_data_xiaomi_p81_35_02_0b_vid_mode_dualdsi_dsc_panel.json` | `p81-35-qdcm.json` |
-
-将它们加入本机构建存储后，正常构建 GNOME 系统即可：
-
-```sh
-nix-store --add-fixed sha256 p81-42-qdcm.json
-nix-store --add-fixed sha256 p81-35-qdcm.json
-```
-
-软件包校验输入摘要并使用公开的 KTZ8866 背光映射生成配置，固定 ICC 时间戳和标识，最终只安装两份 ICC。它是跨架构共用的固定输出，可在本机生成后用 `nix copy` 发送成品到构建机，无需发送原厂 JSON。亮度来自原厂模型，压缩曲线的误差不包括原厂量化歧义或面板物理测量误差。
-
-BOE 实机已通过 GNOME HDR 开关、灰阶与彩色测试图、窗口与全屏切换、亮度调整。mpv 在 Adreno 830v1 上使用十位 HDR10 Vulkan swapchain，接收 PQ／BT.2020 及 P3 目标色域，活动 KMS 帧缓冲为 `XR30`。最大背光 `2047` 时，Wayland 反馈的目标峰值为取整后的 778 nit，SDR 白点为 203 nit；这是校准模型的协议反馈，不是亮度计测量。
+GNOME 沿用 nixpkgs 的 Mutter 和显示设置，不再安装面板专用 ICC 或覆盖其输出转换。显示亮度、HDR 参考白和 SDR 内容亮度使用标准 Mutter 策略；硬件输出校准不会接管合成器的色调映射。切换内核后应检查 HDR 开关、灰阶与彩色图、窗口和全屏切换、亮度及参考白调整，并保存活动 DRM 属性和日志；旧软件转换路径的测试结果不代表当前路径已通过同样检查。
 
 设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件：原厂 120/60、90/50/48/30、144 分属三组时序和 DDIC 配置，不能把全局最低的 30 Hz 当作 120 Hz 时序的连续下限。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)
 
@@ -82,11 +66,11 @@ GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程�
 
 指纹通过原生 QTEE 客户端和 libfprint 平台驱动接入标准 fprintd、GNOME 账户设置及 PAM，支持 Linux 独立录入、持久保存、验证、删除和取消。签名 TA 与模型按共享清单校验，供客户端读取的副本保留未压缩形式。原生实现使用独立的 Gatekeeper UID、凭据和模板，状态保存在 `/var/lib/piano-goodix/<LinuxUID>/`，不读取或复制 Android 指纹模板。独立凭据的建立与授权录入使用原厂 Keymaster 和真实 HAT；RPMB 与 Android 共用，Linux UID 隔离不代表独立的物理安全存储。硬件访问由标准 fprintd 管理，GNOME 验证配置关闭 SSH 的指纹认证，保留密码登录。协议和存储边界见[共享指纹实现说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/led-ir-fingerprint.md)。
 
-板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙初始化复用现有 MGMT 程序：优先读取只读 persist 的原厂公共地址，缺失时才从 SoC 身份派生稳定地址，不写原厂分区。
+板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙公共地址由 UEFI 从只读原厂数据取得，经标准 `local-bd-address` 设备树属性交给内核；原厂地址不可用时，固件可从 SoC 身份派生稳定地址。内核通过标准接口将地址提供给 BlueZ，Linux 不再读取 persist 或通过 MGMT 改写控制器地址。
 
 ## 验证镜像的日志采集
 
-`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。内核包在原 BSP 补丁之后保留 ath12k 的两项上游发送修复和专用 DMA 池，并加入 identity 附着检查、蓝牙电源延迟探测、RPMsg 别名及 CPU boost 默认策略。补丁均保存在 `packages/kernel/patches/`，内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
+`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。ath12k 发送修复与 DMA 池、IOMMU 附着检查、蓝牙电源延迟探测、RPMsg 别名、PCIe 复位和 GLINK 挂起修复均由 SunUEFI 的有序内核补丁提供。NixOS 的 `packages/kernel/patches/` 只保留 `cpufreq-scmi-piano-boost-default.patch`，用于默认启用 CPU boost。内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
 
 验证内核编入 ath12k 调试接口、trace 和固件转储；默认 `debug_mask=0x1072`，不自动打开逐包 trace。udev 在内核已经生成 devcoredump 后启动归档服务，只读快照并保存到 Linux 自己的状态目录。日志策略和归档服务均不修改原厂分区。现有 ramoops 与 UEFI 共用控制台内存布局，因此此处不改变它的地址和分配方式。
 
