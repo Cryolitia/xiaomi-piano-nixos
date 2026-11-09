@@ -58,11 +58,6 @@ def install_runtime_scripts(source, installer):
         (source / "linux/userspace/pen/piano-pen-bluetooth.py").read_text(),
     )
     installer.write(
-        "bluetooth-address.py",
-        (source / "linux/bsp/common/usr/lib/piano/bluetooth-address.py").read_text(),
-    )
-
-    installer.write(
         "usb-network",
         (source / "linux/bsp/common/usr/lib/piano/usb-network").read_text(),
     )
@@ -81,7 +76,7 @@ def install_shared_resources(source, installer):
     )
 
 
-def prepare_source(source, debian):
+def prepare_source(source, debian, macros):
     # Load the touch reader source builder from the pinned board source,
     # never from the developer's ambient Python package path.
     sys.path.insert(0, str(source / "tools"))
@@ -93,14 +88,18 @@ def prepare_source(source, debian):
     work = Path.cwd()
     derived, _ = helpers.derive_touch_source(debian, work)
     shutil.copyfile(derived, work / "piano-touch-view.c")
+    helpers.build_topology(debian, macros, work / "firmware")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    prepare = commands.add_parser("prepare", help="derive the touch reader source")
+    prepare = commands.add_parser(
+        "prepare", help="derive touch source and build audio topology"
+    )
     prepare.add_argument("sunuefi", type=Path)
     prepare.add_argument("debian", type=Path)
+    prepare.add_argument("macros", type=Path)
     install = commands.add_parser("install", help="install runtime scripts and data")
 
     for name in ("sunuefi", "output", "shell", "python"):
@@ -109,7 +108,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "prepare":
-        prepare_source(args.sunuefi, args.debian)
+        prepare_source(args.sunuefi, args.debian, args.macros)
     else:
         installer = ScriptInstaller(args)
         source = Path(args.sunuefi)

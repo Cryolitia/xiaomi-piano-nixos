@@ -15,5 +15,4 @@ in
   pipewire = pkgs.callPackage ./pipewire { };
   sensors = pkgs.callPackage ./sensors { };
   mesa = pkgs.callPackage ./mesa { };
-  displayColor = pkgs.callPackage ./display-color { };
 }

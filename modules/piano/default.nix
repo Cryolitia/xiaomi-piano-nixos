@@ -29,9 +29,10 @@ in
       24
     ];
     description = ''
-      Physical RAM capacity in GiB. Selects the matching validated DDR map;
-      the loader does not replace this map. Other capacities are rejected
-      until their physical and reserved-memory layout has been established.
+      Physical RAM capacity in GiB for the validated static device-tree map.
+      Current SunUEFI replaces RAM and DDR metadata with the layout supplied
+      by this boot's firmware. The static selection also supports older
+      firmware that requires the input map to match the device.
     '';
   };
 

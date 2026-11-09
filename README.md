@@ -31,14 +31,14 @@ nixosConfigurations.tablet = nixpkgs.lib.nixosSystem {
 
 ```nix
 nixpkgs.config.allowUnfreePredicate = pkg:
-  builtins.elem (lib.getName pkg) [ "piano-firmware" "piano-fingerprint" "piano-display-color" ];
+  builtins.elem (lib.getName pkg) [ "piano-firmware" "piano-fingerprint" ];
 ```
 
-当前改装机将 `hardware.xiaomi.piano.memoryGiB` 设为 `24`。目前提供 16 GB 原厂基准和当前实机已核对的 24 GB 布局；8 GB、12 GB 及其他未取得设备树依据的容量会被拒绝，避免套用错误的内存范围。此选项不修改分区大小。
+24 GB 改装机将 `hardware.xiaomi.piano.memoryGiB` 设为 `24`。该选项保留 16 GB 原厂基准和 24 GB 改装布局，供需要静态内存表的旧版标准 EFI 固件使用；新版 SunUEFI 会按本次 ABL 提供的布局回填内存范围。当前构建入口仍只接受这两种容量，此选项不修改分区大小。
 
 触摸屏默认只启用手指输入。需要使用笔时，设置 `hardware.xiaomi.piano.pen.enable = true;`，同时启用笔输入和笔的蓝牙配置；默认值为 `false`。
 
-启用 GNOME 后，可在“设置 → 显示”开启 HDR。模块自动选择面板校准，支持十位输出及随背光更新的 HDR 亮度；从源码构建前的校准文件准备见[开发说明](docs/development.md#显示传感器与无线身份)。
+启用 GNOME 后，可在“设置 → 显示”开启 HDR。Mutter 使用标准 DRM 的 PQ／BT.2020 输出，内核按面板加载随固件包提供的原厂校准并完成十位输出转换；合成与色调映射由 Mutter 处理。实现与亮度边界见[开发说明](docs/development.md#显示传感器与无线身份)。
 
 ## 构建 GNOME 验证镜像
 

@@ -19,7 +19,7 @@ def install_files(manifest_path, manifest, output):
         ):
             raise ValueError("Firmware content differs from manifest: " + str(source))
 
-        target = output / "lib/firmware" / name
+        target = output / "lib/firmware" / manifest.get("directory", "") / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
         target.chmod(0o644)

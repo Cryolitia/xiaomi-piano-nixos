@@ -46,12 +46,6 @@ in
       };
     };
 
-    bluetooth = lib.mkIf config.hardware.bluetooth.enable {
-      # The kernel owns power and firmware loading. Only missing per-device
-      # identity still needs MGMT provisioning before BlueZ takes over.
-      serviceConfig.ExecStartPre = "-+${runtime}/bluetooth-address.py";
-    };
-
     piano-adsp = {
       description = "Start Piano ADSP after display handover";
       wantedBy = [ "multi-user.target" ];

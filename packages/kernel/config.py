@@ -9,6 +9,7 @@ HARDWARE_FRAGMENTS = (
     "piano-bluetooth.config",
     "piano-flash.config",
     "piano-pen-dock.config",
+    "piano-ir.config",
     "piano-cpucp-early.config",
     "piano-userspace-security.config",
     "piano-sleep.config",

@@ -4,7 +4,7 @@ args@{
   applyPatches,
   buildPackages,
   callPackage,
-  fetchFromGitHub,
+  fetchgit,
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
   structuredExtraConfig ? { },
   ...
@@ -49,27 +49,15 @@ let
 
   source = applyPatches {
     name = "linux-piano-source";
-    src = fetchFromGitHub {
+    src = fetchgit {
       name = "source";
-      owner = "torvalds";
-      repo = "linux";
+      url = series.source_url;
       rev = series.base_commit;
-      hash = "sha256-ca8CMAWKe1yzkQIn8sasUQxMLqdtfvC+wBFtX3819Zk=";
+      hash = "sha256-P+bNjwB204gzpltpfbI6PvV2uxPagElQIKVJopjhx/8=";
     };
-    # Keep the upstream TX fixes and attach the board's WLAN DMA pool.
+    # Keep Piano's existing CPU boost default.
     patches = map checkedPatch series.patches ++ [
-      ./patches/ath12k-msdu-dma-address.patch
-      ./patches/ath12k-tx-stats-bounds.patch
-      ./patches/ath12k-pci-cma.patch
-      ./patches/iommu-identity-attach-readback.patch
-      ./patches/iommu-adreno-defer-default-domain.patch
-      ./patches/iommu-media-default-domain.patch
-      ./patches/bluetooth-qca-defer-power-sequencer.patch
-      ./patches/nanosic-tablet-mode-switch.patch
       ./patches/cpufreq-scmi-piano-boost-default.patch
-      ./patches/rpmsg-channel-modalias-fallback.patch
-      ./patches/pcie-qcom-phy-reset-sequence.patch
-      ./patches/pmic-glink-altmode-freezable.patch
     ];
     postPatch = ''
       ${buildPackages.python3.interpreter} ${./config.py} . ${kernelInputs}
@@ -82,7 +70,7 @@ let
     "applyPatches"
     "buildPackages"
     "callPackage"
-    "fetchFromGitHub"
+    "fetchgit"
     "sunuefiSrc"
     "structuredExtraConfig"
     "extraMeta"

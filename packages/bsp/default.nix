@@ -16,6 +16,7 @@
   glib,
   callPackage,
   fetchFromGitHub,
+  fetchzip,
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
 }:
 
@@ -27,12 +28,12 @@ let
     rev = "a75f8c5d5fa099d65c171ac839c2e3bb6c63ec45";
     hash = "sha256-ji67l4DmgMLKlggkVtBbGWvVS/Aw5JeyQcuKuHAls4A=";
   };
-  audioReachSrc = fetchFromGitHub {
+  audioReach =
+    (builtins.fromJSON (builtins.readFile "${sunuefiSrc}/sources.lock.json")).audioreach-topology;
+  audioReachSrc = fetchzip {
     name = "source";
-    owner = "linux-msm";
-    repo = "audioreach-topology";
-    rev = "993a17dcb672357998a463a73f120064d6c74f4f";
-    hash = "sha256-L2qem2uUvV/AgQRZCl/LOmAdaWyc13pDTlNjEXDtgVc=";
+    url = "${lib.removeSuffix ".git" audioReach.url}/archive/${audioReach.commit}.tar.gz";
+    hash = "sha256-J/xqKMa428ScOa/WOvoRopZpo2L70w78XRp8v7JHKRY=";
   };
   runtimePython = python3.withPackages (ps: [ ps.pygobject3 ]);
 in
@@ -54,14 +55,12 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc}
+    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc}
 
     make -C linux/userspace/pen OUT="$PWD/pen-build" \
       CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
     $CC -O2 -Ilinux/userspace/pen -c piano-touch-view.c -o touch.o
     $CXX touch.o pen-build/libpiano-pen-core.a -lm -o piano-touch-view
-
-    bash ${debianPianoSrc}/scripts/build-topology.sh ${audioReachSrc} "$PWD/firmware"
 
     runHook postBuild
   '';
@@ -90,8 +89,6 @@ stdenv.mkDerivation {
       --prefix PATH : ${lib.makeBinPath [ gawk ]}
     wrapProgram "$out/libexec/piano/pen-bluetooth" \
       --prefix GI_TYPELIB_PATH : ${lib.getLib glib}/lib/girepository-1.0
-    wrapProgram "$out/libexec/piano/bluetooth-address.py" \
-      --prefix PATH : ${lib.makeBinPath [ util-linux ]}
     wrapProgram "$out/libexec/piano/usb-network" \
       --prefix PATH : ${
         lib.makeBinPath [

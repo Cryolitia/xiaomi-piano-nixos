@@ -89,7 +89,7 @@ def main():
                 "normalization": normalization,
                 "panel": selection,
                 "sha256": hashlib.sha256(board.read_bytes()).hexdigest(),
-                "handoff": "Existing SunUEFI supplies panel and Gunyah runtime data; RAM addresses must already match the device in this DTB",
+                "handoff": "SunUEFI supplies panel and Gunyah data at runtime; current firmware also replaces RAM and DDR metadata from this boot. The static RAM map supports older firmware.",
                 "device_write_performed": False,
             },
             indent=2,
