@@ -23,6 +23,15 @@ let
 in
 {
   config = lib.mkIf config.services.desktopManager.gnome.enable {
+    # NixOS uses this package for the daemon, user units and udev rules.
+    nixpkgs.overlays = [
+      (_final: previous: {
+        gnome-settings-daemon = previous.callPackage ../../packages/gnome-settings-daemon {
+          inherit (previous) gnome-settings-daemon;
+        };
+      })
+    ];
+
     services.tuned = {
       enable = lib.mkDefault true;
       ppdSupport = lib.mkDefault true;

@@ -68,6 +68,8 @@ GNOME 的节能、平衡、性能三档由 NixOS 原生的 TuneD 服务及其 PP
 
 GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程序。自动旋转需要未锁定方向、有效加速度计和内置屏幕，并遵循 GNOME 的触摸模式策略：Nanosic 键盘 MCU 的持久输入设备把 `keyboard_attached` 转为标准 `SW_TABLET_MODE`，取下键盘为平板模式，装回后退出。键盘和触控板的 HID 设备移除时，这个模式开关仍保留。
 
+键盘背光和麦克风指示灯通过 LED class 随键盘连接状态注册和移除，驱动保留请求亮度，包括关闭状态。GNOME 设置守护进程 50.1 回补标准 UPower 键盘背光能力的热插拔刷新：设备消失时把背光标为不可用，接回后重新读取实际范围和亮度，由 GNOME Shell 的现有控件更新显示。
+
 指纹通过原生 QTEE 客户端和 libfprint 平台驱动接入标准 fprintd、GNOME 账户设置及 PAM，支持 Linux 独立录入、持久保存、验证、删除和取消。签名 TA 与模型按共享清单校验，供客户端读取的副本保留未压缩形式。原生实现使用独立的 Gatekeeper UID、凭据和模板，状态保存在 `/var/lib/piano-goodix/<LinuxUID>/`，不读取或复制 Android 指纹模板。独立凭据的建立与授权录入使用原厂 Keymaster 和真实 HAT；RPMB 与 Android 共用，Linux UID 隔离不代表独立的物理安全存储。硬件访问由标准 fprintd 管理，GNOME 验证配置关闭 SSH 的指纹认证，保留密码登录。协议和存储边界见[共享指纹实现说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/led-ir-fingerprint.md)。
 
 板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙公共地址由 UEFI 从只读原厂数据取得，经标准 `local-bd-address` 设备树属性交给内核；原厂地址不可用时，固件可从 SoC 身份派生稳定地址。内核通过标准接口将地址提供给 BlueZ，Linux 不再读取 persist 或通过 MGMT 改写控制器地址。
