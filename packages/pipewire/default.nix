@@ -11,10 +11,15 @@ pipewire.overrideAttrs (old: {
       url = "https://github.com/PipeWire/pipewire/commit/c4309f0eb5667f15c6c98a3ab19ea2c6f45afa3e.patch";
       hash = "sha256-G/x1RmgbTwOtKoHKvefZi3CmR08drzQaG4MMcPxGfTM=";
     })
-    (fetchurl {
-      url = "https://github.com/PipeWire/pipewire/commit/acea30afaaa0022f9ea134ce876cea12b1b1bcf0.patch";
-      hash = "sha256-+WIkISsX0sosHKn71bE61leQIvfHloQUKlOUiYjv6+I=";
-    })
+    (
+      if pipewire.version == "1.6.11" then
+        ./patches/1.6.11/keep-preferred-caps.patch
+      else
+        fetchurl {
+          url = "https://github.com/PipeWire/pipewire/commit/acea30afaaa0022f9ea134ce876cea12b1b1bcf0.patch";
+          hash = "sha256-+WIkISsX0sosHKn71bE61leQIvfHloQUKlOUiYjv6+I=";
+        }
+    )
     (fetchurl {
       url = "https://github.com/PipeWire/pipewire/commit/18244c9741dda4d5c48df29d15834f25ef97da2b.patch";
       hash = "sha256-K3Z8wexZl7JwLCRora2Y0OxH5XUtJibZcGQQhpP+XR4=";
