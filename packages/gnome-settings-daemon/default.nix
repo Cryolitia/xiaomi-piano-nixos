@@ -6,7 +6,13 @@
 }:
 
 let
-  directory = sunuefiSrc + "/patches/gnome-settings-daemon/${gnome-settings-daemon.version}";
+  # 51.0 keeps the power API patched by the 50.1 series.
+  seriesVersion =
+    {
+      "51.0" = "50.1";
+    }
+    .${gnome-settings-daemon.version} or gnome-settings-daemon.version;
+  directory = sunuefiSrc + "/patches/gnome-settings-daemon/${seriesVersion}";
   series = builtins.fromJSON (builtins.readFile (directory + "/series.json"));
   checkedPatch =
     entry:
