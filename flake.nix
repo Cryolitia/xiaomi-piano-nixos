@@ -7,30 +7,22 @@
     { self, nixpkgs }:
     let
       lib = nixpkgs.lib;
-      mkValidation =
-        extraModules:
-        lib.nixosSystem {
+      configurations = {
+        piano-gnome = lib.nixosSystem {
           system = "aarch64-linux";
           modules = [
             self.nixosModules.piano
             ./configurations/gnome.nix
             ./images
-          ]
-          ++ extraModules;
+          ];
         };
-      configurations = {
-        piano-gnome = mkValidation [ ];
-        piano-24gb-gnome = mkValidation [ { hardware.xiaomi.piano.memoryGiB = 24; } ];
       };
 
       # Check the importable module without the image's disk, desktop or
       # bootloader policy, separately from the complete GNOME configurations.
       hardwareOnly = lib.nixosSystem {
         system = "aarch64-linux";
-        modules = [
-          self.nixosModules.piano
-          { hardware.xiaomi.piano.memoryGiB = 16; }
-        ];
+        modules = [ self.nixosModules.piano ];
       };
 
       forSystems = lib.genAttrs [
@@ -59,7 +51,6 @@
           firmware = piano.firmware;
           device-tree = piano.deviceTree;
           gnome-image = configurations.piano-gnome.config.system.build.pianoImage;
-          gnome-24gb-image = configurations.piano-24gb-gnome.config.system.build.pianoImage;
           default = self.packages.aarch64-linux.gnome-image;
         };
 
@@ -92,8 +83,11 @@
             assert !cfg.services.desktopManager.gnome.enable;
             assert !cfg.services.displayManager.gdm.enable;
             assert !cfg.boot.loader.external.enable;
-            assert configurations.piano-gnome.config.hardware.xiaomi.piano.memoryGiB == 16;
-            assert configurations.piano-24gb-gnome.config.hardware.xiaomi.piano.memoryGiB == 24;
+            assert !(hardwareOnly.options.hardware.xiaomi.piano ? memoryGiB);
+            assert builtins.attrNames configurations == [ "piano-gnome" ];
+            assert
+              self.packages.aarch64-linux.default.drvPath
+              == configurations.piano-gnome.config.system.build.pianoImage.drvPath;
             assert lib.all (
               configuration:
               let

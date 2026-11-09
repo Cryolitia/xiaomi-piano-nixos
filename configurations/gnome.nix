@@ -19,7 +19,6 @@ in
   # These desktop and login defaults belong to the validation image. Importing
   # the hardware module alone must not change a consumer's users or desktop.
   nixpkgs.config.allowUnfree = true;
-  hardware.xiaomi.piano.memoryGiB = lib.mkDefault 16;
 
   networking.hostName = "piano";
   networking.networkmanager.enable = true;

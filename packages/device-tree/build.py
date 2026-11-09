@@ -1,4 +1,4 @@
-"""Apply the pinned board overlays and the selected Piano RAM layout."""
+"""Apply the pinned board overlays for the SunUEFI runtime handoff."""
 
 import argparse
 import hashlib
@@ -39,7 +39,7 @@ def copy_board(source, custom_board):
     shutil.copyfile(board_source, board)
     board.chmod(0o644)
 
-    return board, original_hash, manifest
+    return board, manifest
 
 
 def apply_overlays(board, source, policy, release_tools):
@@ -66,14 +66,12 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("panel")
     parser.add_argument("custom_board", nargs="?", default="-")
-    parser.add_argument("memory_gib", nargs="?", type=int, choices=(16, 24), default=16)
     args = parser.parse_args()
 
     release_tools = load_tools(args.source)
     policy = json.loads((args.source / "config/release.json").read_text())["kernel"]
 
-    board, original_hash, manifest = copy_board(args.source, args.custom_board)
-    memory = release_tools.apply_memory_layout(board, args.memory_gib)
+    board, manifest = copy_board(args.source, args.custom_board)
     overlays = apply_overlays(board, args.source, policy, release_tools)
 
     # Board bindings and optional media-device policy live in the shared source.
@@ -84,12 +82,11 @@ def main():
         json.dumps(
             {
                 "source": manifest,
-                "memory": memory,
                 "overlays": overlays,
                 "normalization": normalization,
                 "panel": selection,
                 "sha256": hashlib.sha256(board.read_bytes()).hexdigest(),
-                "handoff": "SunUEFI supplies panel and Gunyah data at runtime; current firmware also replaces RAM and DDR metadata from this boot. The static RAM map supports older firmware.",
+                "handoff": "SunUEFI fills RAM ranges and DDR metadata from this boot's ABL device tree and supplies panel, Gunyah, Bluetooth and RTC data.",
                 "device_write_performed": False,
             },
             indent=2,

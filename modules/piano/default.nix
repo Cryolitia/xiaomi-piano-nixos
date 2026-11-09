@@ -1,16 +1,11 @@
 {
-  config,
   lib,
   pkgs,
   ...
 }:
 
 let
-  cfg = config.hardware.xiaomi.piano;
   packages = import ../../packages { inherit pkgs; };
-  deviceTree = packages.deviceTree.override {
-    memoryGiB = cfg.memoryGiB;
-  };
 in
 {
   imports = [
@@ -23,26 +18,11 @@ in
     ./sensors.nix
   ];
 
-  options.hardware.xiaomi.piano.memoryGiB = lib.mkOption {
-    type = lib.types.enum [
-      16
-      24
-    ];
-    description = ''
-      Physical RAM capacity in GiB for the validated static device-tree map.
-      Current SunUEFI replaces RAM and DDR metadata with the layout supplied
-      by this boot's firmware. The static selection also supports older
-      firmware that requires the input map to match the device.
-    '';
-  };
-
   options.hardware.xiaomi.piano.pen.enable =
     lib.mkEnableOption "stylus input and Bluetooth pen configuration";
 
   config = {
-    _module.args.pianoPackages = packages // {
-      inherit deviceTree;
-    };
+    _module.args.pianoPackages = packages;
 
     nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
 

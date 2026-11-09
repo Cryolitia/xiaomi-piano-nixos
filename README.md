@@ -1,6 +1,6 @@
 # Xiaomi Pad 8 Pro / piano — NixOS
 
-为小米平板 8 Pro（`piano`）提供可导入的 NixOS 硬件模块和 GNOME 验证镜像。通用模块不指定桌面、用户、根分区或引导器，内存容量通过一个选项指定。
+为小米平板 8 Pro（`piano`）提供可导入的 NixOS 硬件模块和 GNOME 验证镜像。通用模块不指定桌面、用户、根分区或引导器。
 
 项目复用已锁定的 Piano Linux 驱动、固件和板级初始化代码，保留显示、触摸、无线及音频的启动顺序和 DMA 检查。nixpkgs 由 `flake.lock` 固定；其他源码由使用它的软件包以提交和 SHA256 固定，多个包共用的 SunUEFI 来源放在 `packages/sunuefi-source.nix`。不构建 UEFI 固件或 Android 模块。
 
@@ -21,7 +21,6 @@ nixosConfigurations.tablet = nixpkgs.lib.nixosSystem {
   system = "aarch64-linux";
   modules = [
     piano.nixosModules.piano
-    { hardware.xiaomi.piano.memoryGiB = 16; }
     ./configuration.nix
   ];
 };
@@ -34,7 +33,7 @@ nixpkgs.config.allowUnfreePredicate = pkg:
   builtins.elem (lib.getName pkg) [ "piano-firmware" "piano-fingerprint" ];
 ```
 
-24 GB 改装机将 `hardware.xiaomi.piano.memoryGiB` 设为 `24`。该选项保留 16 GB 原厂基准和 24 GB 改装布局，供需要静态内存表的旧版标准 EFI 固件使用；新版 SunUEFI 会按本次 ABL 提供的布局回填内存范围。当前构建入口仍只接受这两种容量，此选项不修改分区大小。
+设备树使用统一的工厂基准，实际 RAM 范围和 DDR 信息由 SunUEFI 根据本次 ABL 引导数据回填。使用前先按[安装说明](docs/install.md)更新具备完整 EFI 内存图和标准设备树内存修正的 UEFI 核心；更新 NixOS 源码或 ESP 不会替代固件更新。
 
 触摸屏默认只启用手指输入。需要使用笔时，设置 `hardware.xiaomi.piano.pen.enable = true;`，同时启用笔输入和笔的蓝牙配置；默认值为 `false`。
 
@@ -42,18 +41,16 @@ nixpkgs.config.allowUnfreePredicate = pkg:
 
 ## 构建 GNOME 验证镜像
 
-项目使用 `nixos-unstable`，精确提交由 `flake.lock` 固定。在 ARM64 Linux 构建机上，按内存容量选择一个构建命令：
+项目使用 `nixos-unstable`，精确提交由 `flake.lock` 固定。在 ARM64 Linux 构建机上运行：
 
 ```sh
 nix build .#gnome-image
-# 24 GB 改装机：
-nix build .#gnome-24gb-image
 ```
 
 从其他架构的机器连接已配置的 ARM64 Nix builder 时，使用完整输出名：
 
 ```sh
-nix build .#packages.aarch64-linux.gnome-24gb-image
+nix build .#packages.aarch64-linux.gnome-image
 ```
 
 镜像固定为 `aarch64-linux`；仅评估配置不需要 ARM64 构建机：

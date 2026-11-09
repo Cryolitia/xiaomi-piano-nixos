@@ -1,6 +1,8 @@
 # 维护与验证
 
-硬件配置、可替换的软件包和验证镜像分别维护。设备模块只设置硬件所需默认值；桌面、用户、语言和磁盘策略放在 `configurations/` 和 `images/`。`hardware.xiaomi.piano.memoryGiB` 选择兼容旧固件的静态内存布局；板级设备树覆盖、内存布局和绑定修正统一放在 SunUEFI 的 `linux/dts/`、`config/memory-layouts/` 及共享构建工具中，本仓库调用这些工具。新版 UEFI 以本次 ABL 的内存表为准。
+硬件配置、可替换的软件包和验证镜像分别维护。设备模块只设置硬件所需默认值；桌面、用户、语言和磁盘策略放在 `configurations/` 和 `images/`。板级设备树覆盖和绑定修正统一放在 SunUEFI 的 `linux/dts/` 及共享构建工具中，本仓库调用这些工具生成统一的工厂基准设备树。实际 RAM 范围与 DDR 元数据由 SunUEFI 使用本次 ABL 的引导数据动态回填。
+
+从旧配置迁移时，删除 `hardware.xiaomi.piano.memoryGiB` 设置；将旧的 `gnome-24gb-image` 构建名改为 `gnome-image`，`piano-24gb-gnome` 配置名改为 `piano-gnome`。已有 NixOS 分区不需要为此重建。
 
 ## 来源
 
@@ -16,13 +18,13 @@
 
 ## 启动与硬件边界
 
-启动链为 SunUEFI → systemd-boot → Linux EFI stub：systemd-boot 按标准 BLS 启动项加载匹配的内核、initrd 和设备树，命令行指向对应的 NixOS 系统。`hardware.xiaomi.piano.memoryGiB` 仍选择 16／24 GiB 静态设备树，供旧版标准 EFI 固件使用；新版 SunUEFI 在 SEC 阶段依据本次 ABL 的内存表建立 EFI 描述，并通过标准设备树修正协议回填 RAM 范围、DDR 元数据、面板和 Gunyah 参数。内核 EFI 启动按 EFI 内存图接收 RAM，固件在 `ExitBootServices` 时完成硬件退出。静态设备树和编译检查均不能替代实际容量与高地址内存验证。
+启动链为 SunUEFI → systemd-boot → Linux EFI stub：systemd-boot 按标准 BLS 启动项加载匹配的内核、initrd 和设备树，命令行指向对应的 NixOS 系统。设备树输入统一使用工厂基准；SunUEFI 在 SEC 阶段依据本次 ABL 的内存表建立 EFI 描述，并通过标准设备树修正协议回填 RAM 范围、DDR 元数据、面板和 Gunyah 参数。内核 EFI 启动按 EFI 内存图接收 RAM，固件在 `ExitBootServices` 时完成硬件退出。静态设备树和编译检查均不能替代实际容量与高地址内存验证。
 
 ESP 使用 512 MiB FAT32、4096 字节逻辑扇区和 `SUNUEFI_ESP` 标签，目标是已有的 `sunuefi_esp` 分区。`loader/entries/nixos-*.conf` 使用 `linux`、`initrd`、`devicetree` 和 `options`；载荷使用 nixpkgs systemd-boot 模块的 `/EFI/nixos/<store 名称>-<文件名>.efi` 平铺布局。初始离线 ESP 从系统的 `boot.json` 及其设备树扩展生成入口；后续更新、代际选择和清理完全使用 NixOS 自带的 systemd-boot 模块。本项目不构建 UEFI 固件或 Android 模块。
 
-验证镜像统一通过 `gnome-image` 或 `gnome-24gb-image` 构建，一个 `result/` 只提供 `root.sparse.img` 和 `esp.sparse.img`。root 复用 nixpkgs `make-ext4-fs.nix` 生成的文件系统，按实际内容确定大小，首次启动时扩展到已有分区；打包阶段不再复制 raw root 或二次调整容量。两份镜像统一使用 `img2simg` 转换。启动载荷和读回校验所需清单只作为内部构建输入，ESP raw 文件在临时目录生成。镜像打包保留启动载荷的基本架构和格式检查，读回验证 FAT32 中的启动文件，并将 ESP 稀疏镜像展开后逐字节比较；运行时由标准模块消费每代 bootspec，`nixos-rebuild` 会连同设备树一起更新启动文件。
+验证镜像统一通过 `gnome-image` 构建，一个 `result/` 只提供 `root.sparse.img` 和 `esp.sparse.img`。root 复用 nixpkgs `make-ext4-fs.nix` 生成的文件系统，按实际内容确定大小，首次启动时扩展到已有分区；打包阶段不再复制 raw root 或二次调整容量。两份镜像统一使用 `img2simg` 转换。启动载荷和读回校验所需清单只作为内部构建输入，ESP raw 文件在临时目录生成。镜像打包保留启动载荷的基本架构和格式检查，读回验证 FAT32 中的启动文件，并将 ESP 稀疏镜像展开后逐字节比较；运行时由标准模块消费每代 bootspec，`nixos-rebuild` 会连同设备树一起更新启动文件。
 
-标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理，systemd-boot 的音量键导航还需要扩展输入协议。所需核心由固定来源对应的 SunUEFI 引导助手交付，NixOS 构建不更新它；只有 128 MiB raw 载荷支持的旧固件不满足这些条件。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
+标准 EFI 启动需要 SunUEFI 提供完整 RAM/保留区的 EFI 内存描述、设备树修正协议和标准内核退出处理，systemd-boot 的音量键导航还需要扩展输入协议。所需核心由固定来源对应的 SunUEFI 引导助手交付，更新 NixOS 源码或 ESP 不会替代固件更新。使用前的固件更新步骤见[安装说明](install.md)。内核、initrd 和 DTB 独立加载，受 FAT32 单文件及 ESP 容量约束；不再使用 Android boot 容器的 16/128 MiB 限制。验证配置保留完整的 nixos-unstable systemd initrd 和 XZ 压缩。
 
 initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplug 自动加载；stage2 使用同一套普通 modalias 机制。设备树表达时钟、电源域、GPIO 和 IOMMU 关系，驱动通过延迟探测等待资源。本项目不再修改 `80-drivers.rules`、设置板级模块黑名单或用专用服务加载存储、显示、键盘、声卡和无线模块。未适配设备在共享设备树中禁用；继承的 CoreSight 追踪节点按 Linux AMBA 外设 ID 识别并禁用，避免寄存器探测阻塞启动。媒体节点由共享构建策略选择，保留 SunUEFI 其他发行版已有的媒体能力。
 
@@ -89,7 +91,7 @@ Python 规则统一放在 `ruff.toml`。`--no-build` 只评估检查项，不会
 ```sh
 nix flake check --all-systems --no-build
 nix eval .#nixosConfigurations.piano-gnome.config.system.build.toplevel.drvPath
-nix eval .#nixosConfigurations.piano-24gb-gnome.config.system.build.pianoImage.drvPath
+nix eval .#nixosConfigurations.piano-gnome.config.system.build.pianoImage.drvPath
 nix build .#kernel
 nix build .#gnome-image
 ```
