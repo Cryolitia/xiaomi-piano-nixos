@@ -54,6 +54,8 @@ GNOME 沿用 nixpkgs 的 Mutter 和显示设置，不再安装面板专用 ICC �
 
 设备树将遗留 MMSS 节点转换为标准 SM8750 interconnect provider，并为 MDSS 提供 `mdp0-mem` 和 `cpu-cfg` 路径。DPU 沿父 MDSS 取得这些路径，通过现有 RPMh/BCM 驱动申请显示带宽。显示仍提供七档固定刷新率。连续 VRR 还需要面板允许的逐帧周期范围、双 DSI AVR 同步及 DRM 驱动实现；原厂 P81 的固定 DFPS 列表不能替代这些条件：原厂 120/60、90/50/48/30、144 分属三组时序和 DDIC 配置，不能把全局最低的 30 Hz 当作 120 Hz 时序的连续下限。[原厂 P81 配置](https://github.com/MiCode/vendor_qcom_opensource_display-devicetree/blob/cc4e65ad4bd54e26b60f5a8ee76bbc3cca6821b9/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi)
 
+GNOME 的节能、平衡、性能三档由 NixOS 原生的 TuneD 服务及其 PPD 兼容服务提供，CPU/GPU 策略直接复用锁定 SunUEFI 源码中的 `piano-*` profile。没有已保存选择时回退到平衡，后续保留用户选择。三档调整 CPU/GPU 频率上限，不代替系统挂起。
+
 设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。`modules/piano/gnome.nix` 将用户会话和 GDM 登录页的电源键动作设为 GNOME 原生的 `suspend`。短按电源键通过 logind 挂起系统；仅熄屏而系统仍运行时也执行这一动作。成功恢复后，GNOME 会暂时忽略电源键，避免唤醒时上报的同次按键再次触发挂起。
 
 同一模块按外部供电区分自动挂起策略：插电时 `sleep-inactive-ac-type=nothing`，保留原有的自动熄屏和锁屏时间；电池供电时 `sleep-inactive-battery-type=suspend`。logind 的 `HandleLidSwitchExternalPower=lock` 让插电合盖只锁屏，`HandleLidSwitch=suspend` 保留电池合盖挂起。`MemorySleepMode=deep` 指定真正挂起时的内存休眠方式；电源键和菜单发起的显式挂起仍然有效。

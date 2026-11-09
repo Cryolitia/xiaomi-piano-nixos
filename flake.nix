@@ -61,6 +61,8 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           cfg = hardwareOnly.config;
+          gnome = configurations.piano-gnome.config;
+          powerOverlay = (import ./packages/sunuefi-source.nix { }) + "/linux/desktops/gnome/power-overlay";
         in
         {
           scripts-format =
@@ -82,9 +84,22 @@
             assert !(cfg.systemd.services ? register-nix-paths);
             assert !cfg.services.desktopManager.gnome.enable;
             assert !cfg.services.displayManager.gdm.enable;
+            assert !cfg.services.tuned.enable;
+            assert !cfg.services.power-profiles-daemon.enable;
             assert !cfg.boot.loader.external.enable;
             assert !(hardwareOnly.options.hardware.xiaomi.piano ? memoryGiB);
             assert builtins.attrNames configurations == [ "piano-gnome" ];
+            assert gnome.services.tuned.enable && gnome.services.tuned.ppdSupport;
+            assert !gnome.services.power-profiles-daemon.enable;
+            assert gnome.services.upower.enable;
+            assert
+              gnome.environment.etc."tuned/ppd.conf".text
+              == builtins.readFile (powerOverlay + "/etc/tuned/piano-ppd.conf");
+            assert lib.all (
+              name:
+              gnome.environment.etc."tuned/profiles/${name}/tuned.conf".text
+              == builtins.readFile (powerOverlay + "/usr/lib/tuned/profiles/${name}/tuned.conf")
+            ) (builtins.attrNames (builtins.readDir (powerOverlay + "/usr/lib/tuned/profiles")));
             assert
               self.packages.aarch64-linux.default.drvPath
               == configurations.piano-gnome.config.system.build.pianoImage.drvPath;
