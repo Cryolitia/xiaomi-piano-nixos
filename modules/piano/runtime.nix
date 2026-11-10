@@ -20,27 +20,21 @@ in
     };
   };
 
-  # The touch driver exposes its THP stream before the bind event. Keep the
-  # device inactive until then so systemd starts the reader with a real stream.
-  services.udev.extraRules = ''
+  # Finger input is native. Only the optional pen reader needs the THP stream.
+  services.udev.extraRules = lib.mkIf pen.enable ''
     SUBSYSTEM=="spi", ATTR{modalias}=="spi:NVT-ts-spi", TAG+="systemd", ENV{SYSTEMD_READY}="0"
     SUBSYSTEM=="spi", DRIVER=="NVT-ts-spi", TEST=="/proc/nvt_thp_stream", ENV{SYSTEMD_READY}="1", ENV{SYSTEMD_WANTS}+="piano-touch.service"
+    ${builtins.readFile (
+      pianoPackages.bsp.src + "/linux/bsp/common/etc/udev/rules.d/79-piano-pen-touch-group.rules"
+    )}
   '';
 
   systemd.services = {
-    piano-touch = {
-      description = "Piano THP touch input";
-      preStart = lib.optionalString (!pen.enable) ''
-        # A previous pen-enabled reader may have left stylus scanning active.
-        echo 0 > /proc/nvt_thp_stylus
-      '';
+    piano-touch = lib.mkIf pen.enable {
+      description = "Piano stylus input";
       serviceConfig = {
         Type = "simple";
-        ExecStart =
-          if pen.enable then
-            "${runtime}/touch-input"
-          else
-            "${pianoPackages.bsp}/bin/piano-touch-view input --seconds 0";
+        ExecStart = "${runtime}/touch-input";
         Restart = "on-failure";
         RestartSec = 5;
       };

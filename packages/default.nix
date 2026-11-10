@@ -1,8 +1,11 @@
-{ pkgs }:
+{
+  pkgs,
+  withPen ? false,
+}:
 
 let
   kernel = pkgs.callPackage ./kernel { };
-  bsp = pkgs.callPackage ./bsp { };
+  bsp = pkgs.callPackage ./bsp { inherit withPen; };
 in
 {
   inherit kernel bsp;

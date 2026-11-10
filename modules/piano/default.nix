@@ -1,11 +1,15 @@
 {
+  config,
   lib,
   pkgs,
   ...
 }:
 
 let
-  packages = import ../../packages { inherit pkgs; };
+  packages = import ../../packages {
+    inherit pkgs;
+    withPen = config.hardware.xiaomi.piano.pen.enable;
+  };
 in
 {
   imports = [

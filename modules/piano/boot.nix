@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   pianoPackages,
   ...
@@ -33,11 +34,8 @@
     "ext4"
   ];
 
-  # Virtual input interfaces have no physical device alias to trigger loading.
-  boot.kernelModules = [
-    "uhid"
-    "uinput"
-  ];
+  # Bluetooth HID uses uhid; the optional pen reader creates a uinput device.
+  boot.kernelModules = [ "uhid" ] ++ lib.optional config.hardware.xiaomi.piano.pen.enable "uinput";
 
   # These are driver policies, not a userspace module-loading sequence.
   # DT disables unsupported devices; normal aliases remain enabled on all buses.

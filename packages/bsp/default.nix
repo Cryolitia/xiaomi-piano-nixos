@@ -18,6 +18,7 @@
   fetchFromGitHub,
   fetchzip,
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  withPen ? false,
 }:
 
 let
@@ -35,7 +36,7 @@ let
     url = "${lib.removeSuffix ".git" audioReach.url}/archive/${audioReach.commit}.tar.gz";
     hash = "sha256-J/xqKMa428ScOa/WOvoRopZpo2L70w78XRp8v7JHKRY=";
   };
-  runtimePython = python3.withPackages (ps: [ ps.pygobject3 ]);
+  runtimePython = if withPen then python3.withPackages (ps: [ ps.pygobject3 ]) else python3;
 in
 stdenv.mkDerivation {
   pname = "piano-bsp";
@@ -55,12 +56,15 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc}
+    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc} \
+      ${lib.optionalString withPen "--with-pen"}
 
-    make -C linux/userspace/pen OUT="$PWD/pen-build" \
-      CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
-    $CC -O2 -Ilinux/userspace/pen -c piano-touch-view.c -o touch.o
-    $CXX touch.o pen-build/libpiano-pen-core.a -lm -o piano-touch-view
+    ${lib.optionalString withPen ''
+      make -C linux/userspace/pen OUT="$PWD/pen-build" \
+        CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
+      $CC -O2 -Ilinux/userspace/pen -c piano-touch-view.c -o touch.o
+      $CXX touch.o pen-build/libpiano-pen-core.a -lm -o piano-touch-view
+    ''}
 
     runHook postBuild
   '';
@@ -78,17 +82,22 @@ stdenv.mkDerivation {
 
     python3 ${./transform.py} install \
       --sunuefi "$PWD" --output "$out" \
-      --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3
+      --shell ${bash}/bin/bash --python ${runtimePython}/bin/python3 \
+      ${lib.optionalString withPen "--with-pen"}
 
-    install -Dm755 piano-touch-view "$out/bin/piano-touch-view"
-    install -Dm755 pen-build/piano-pen-offline "$out/bin/piano-pen-offline"
+    ${lib.optionalString withPen ''
+      install -Dm755 piano-touch-view "$out/bin/piano-touch-view"
+      install -Dm755 pen-build/piano-pen-offline "$out/bin/piano-pen-offline"
+      wrapProgram "$out/libexec/piano/touch-input" \
+        --prefix PATH : ${lib.makeBinPath [ gawk ]}
+      wrapProgram "$out/libexec/piano/pen-bluetooth" \
+        --prefix GI_TYPELIB_PATH : ${lib.getLib glib}/lib/girepository-1.0
+      install -Dm644 linux/userspace/pen/Apache-2.0.txt "$out/share/licenses/piano-bsp/Apache-2.0.txt"
+    ''}
+
     mkdir -p "$out/lib"
     cp -r firmware "$out/lib/firmware"
 
-    wrapProgram "$out/libexec/piano/touch-input" \
-      --prefix PATH : ${lib.makeBinPath [ gawk ]}
-    wrapProgram "$out/libexec/piano/pen-bluetooth" \
-      --prefix GI_TYPELIB_PATH : ${lib.getLib glib}/lib/girepository-1.0
     wrapProgram "$out/libexec/piano/usb-network" \
       --prefix PATH : ${
         lib.makeBinPath [
@@ -101,15 +110,14 @@ stdenv.mkDerivation {
 
     install -Dm644 ${sunuefiSrc}/LICENSE.md "$out/share/licenses/piano-bsp/LICENSE.sunuefi.md"
     install -Dm644 ${debianPianoSrc}/LICENSE "$out/share/licenses/piano-bsp/LICENSE.debian-piano"
-    install -Dm644 linux/userspace/pen/Apache-2.0.txt "$out/share/licenses/piano-bsp/Apache-2.0.txt"
 
     runHook postInstall
   '';
 
-  passthru = { inherit debianPianoSrc; };
+  passthru = { inherit debianPianoSrc withPen; };
 
   meta = {
-    description = "Xiaomi Pad 8 Pro touch input, ALSA profiles and hardware diagnostics";
+    description = "Xiaomi Pad 8 Pro board support and optional stylus input";
     platforms = lib.platforms.linux;
     license = with lib.licenses; [
       mit
