@@ -169,7 +169,8 @@ kernel.overrideAttrs (old: {
 
     # Check the final Kconfig result, rather than trusting requested settings
     # that the upstream kernel may have renamed or made conditional.
-    for setting in MODULES BLK_DEV_INITRD RD_XZ DEVTMPFS CGROUPS FHANDLE SECCOMP EXT4_FS; do
+    for setting in MODULES BLK_DEV_INITRD RD_XZ DEVTMPFS CGROUPS FHANDLE SECCOMP EXT4_FS \
+                   IIO BATTERY_BQ27XXX_IIO QCOM_SPMI_ADC5_GEN3; do
       grep -qx "CONFIG_$setting=y" "$piano_config" || {
         echo "Missing required Piano/NixOS kernel setting: $setting" >&2
         exit 1
