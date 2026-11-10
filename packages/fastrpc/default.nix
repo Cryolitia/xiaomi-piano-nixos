@@ -11,13 +11,13 @@
 
 stdenv.mkDerivation {
   pname = "fastrpc";
-  version = "1.0.7";
+  version = "1.0.8";
 
   src = fetchFromGitHub {
     owner = "qualcomm";
     repo = "fastrpc";
-    rev = "228d98b5f143ed917789cde017a8aa548e65b80b";
-    hash = "sha256-23aq4o2lRhQdBbdrWBdJKVSjl4JHAqpm/sONeiLBP0c=";
+    rev = "d247519650fe5cb16de6c78edaa95bcc4be25073";
+    hash = "sha256-XL0u7zNRxpUHBQ761aXFUupR0AHJfRFRZPa92LNn2ZQ=";
   };
 
   nativeBuildInputs = [
