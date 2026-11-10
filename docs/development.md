@@ -34,7 +34,7 @@ initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplu
 
 默认启用 MiPPS 认证与 SC8541 电荷泵直充，由内核按 PPS 电源能力、电芯温度和电压决定是否进入直充。直充输入电流目标上限为 4 A，两电芯合计充电电流目标上限为 8 A，仍受温控和电源能力限制。挂起先确认电荷泵停止，恢复后重新检查充电条件；拔线会清除固件认证状态。内核同时提供电荷泵硬件看门狗和软件超时保护，无需额外用户态服务。
 
-ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。触摸的常驻 THP 解码器继续提供 evdev 事件，在 SPI 驱动绑定后由 udev 启动。蓝牙使用内核注册的本机地址，USB configfs 与 Type-C 插拔继续由原有服务处理。
+ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。手指触摸由内核直接提供标准输入事件，不安装或启动 THP 用户空间读取者。只有 `hardware.xiaomi.piano.pen.enable = true` 时，才构建笔程序并由 SPI 绑定事件启动笔输入服务；服务保留校准解码与蓝牙配置，udev 将原生触屏和虚拟笔归入同一 libinput 设备组。蓝牙使用内核注册的本机地址，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
 相机和视频设备沿用普通 modalias 与延迟探测。CAMSS 和 Iris 在内核中选择 DMA 映射域；不再由启动脚本修改 IOMMU group。`v4l2loopback` 随同一代内核构建，常驻 C 程序 `piano-camerad` 负责传感器曝光、白平衡、对焦和 ISP 输出，向 PipeWire 发布前后摄像头；应用关闭后停止采集。服务以 root/video 运行，控制 socket 只供 video 组访问。WirePlumber 隐藏内部 CAMSS 入口，避免同时出现原始 ISP 与对外摄像头。
 

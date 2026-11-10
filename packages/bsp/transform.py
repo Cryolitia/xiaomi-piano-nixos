@@ -49,26 +49,29 @@ class ScriptInstaller:
         target.chmod(0o755)
 
 
-def install_runtime_scripts(source, installer):
-    installer.write(
-        "touch-input", (source / "linux/userspace/pen/piano-touch-input").read_text()
-    )
-    installer.write(
-        "pen-bluetooth",
-        (source / "linux/userspace/pen/piano-pen-bluetooth.py").read_text(),
-    )
+def install_runtime_scripts(source, installer, with_pen):
+    if with_pen:
+        installer.write(
+            "touch-input",
+            (source / "linux/userspace/pen/piano-touch-input").read_text(),
+        )
+        installer.write(
+            "pen-bluetooth",
+            (source / "linux/userspace/pen/piano-pen-bluetooth.py").read_text(),
+        )
     installer.write(
         "usb-network",
         (source / "linux/bsp/common/usr/lib/piano/usb-network").read_text(),
     )
 
 
-def install_shared_resources(source, installer):
-    shutil.copytree(
-        source / "linux/bsp/common/usr/share/piano/pen",
-        installer.share / "pen",
-        dirs_exist_ok=True,
-    )
+def install_shared_resources(source, installer, with_pen):
+    if with_pen:
+        shutil.copytree(
+            source / "linux/bsp/common/usr/share/piano/pen",
+            installer.share / "pen",
+            dirs_exist_ok=True,
+        )
     shutil.copytree(
         source / "linux/bsp/common/usr/share/alsa",
         installer.output / "share/alsa",
@@ -76,18 +79,17 @@ def install_shared_resources(source, installer):
     )
 
 
-def prepare_source(source, debian, macros):
-    # Load the touch reader source builder from the pinned board source,
-    # never from the developer's ambient Python package path.
+def prepare_source(source, debian, macros, with_pen):
+    # Reuse the pinned board source for topology and optional pen preparation.
     sys.path.insert(0, str(source / "tools"))
     helpers = load_module(
         "piano_helpers", source / "tools/build_piano_runtime_helpers.py"
     )
-    # Build the reviewed reader with the calibrated pen core in the Nix build;
-    # do not install a host executable or a foreign prebuilt tool.
     work = Path.cwd()
-    derived, _ = helpers.derive_touch_source(debian, work)
-    shutil.copyfile(derived, work / "piano-touch-view.c")
+    if with_pen:
+        # The calibrated pen reader is built natively; fingers use the kernel.
+        derived, _ = helpers.derive_touch_source(debian, work)
+        shutil.copyfile(derived, work / "piano-touch-view.c")
     helpers.build_topology(debian, macros, work / "firmware")
 
 
@@ -95,7 +97,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser(
-        "prepare", help="derive touch source and build audio topology"
+        "prepare", help="build audio topology and optional pen source"
     )
     prepare.add_argument("sunuefi", type=Path)
     prepare.add_argument("debian", type=Path)
@@ -105,15 +107,18 @@ def main():
     for name in ("sunuefi", "output", "shell", "python"):
         install.add_argument("--" + name, required=True)
 
+    for command in (prepare, install):
+        command.add_argument("--with-pen", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "prepare":
-        prepare_source(args.sunuefi, args.debian, args.macros)
+        prepare_source(args.sunuefi, args.debian, args.macros, args.with_pen)
     else:
         installer = ScriptInstaller(args)
         source = Path(args.sunuefi)
-        install_runtime_scripts(source, installer)
-        install_shared_resources(source, installer)
+        install_runtime_scripts(source, installer, args.with_pen)
+        install_shared_resources(source, installer, args.with_pen)
 
 
 if __name__ == "__main__":
