@@ -58,7 +58,7 @@ GNOME 的节能、平衡、性能三档由 NixOS 原生的 TuneD 服务及其 PP
 
 设备模块通过 `/etc/machine-info` 声明真实 `CHASSIS=tablet`，保留 Gunyah 的虚拟化信息，避免 GNOME 把平板按虚拟机电源策略关机。`modules/piano/gnome.nix` 将用户会话和 GDM 登录页的电源键动作设为 GNOME 原生的 `suspend`。短按电源键通过 logind 挂起系统；仅熄屏而系统仍运行时也执行这一动作。成功恢复后，GNOME 会暂时忽略电源键，避免唤醒时上报的同次按键再次触发挂起。
 
-同一模块按外部供电区分自动挂起策略：插电时 `sleep-inactive-ac-type=nothing`，保留原有的自动熄屏和锁屏时间；电池供电时 `sleep-inactive-battery-type=suspend`。logind 的 `HandleLidSwitchExternalPower=lock` 让插电合盖只锁屏，`HandleLidSwitch=suspend` 保留电池合盖挂起。`MemorySleepMode=deep` 指定真正挂起时的内存休眠方式；电源键和菜单发起的显式挂起仍然有效。
+同一模块按外部供电区分自动挂起策略：插电时 `sleep-inactive-ac-type=nothing`，保留原有的自动熄屏和锁屏时间；电池供电时 `sleep-inactive-battery-type=suspend`。logind 的 `HandleLidSwitchExternalPower=lock` 让插电合盖只锁屏，`HandleLidSwitch=suspend` 保留电池合盖挂起。`MemorySleepMode=deep` 指定真正挂起时的内存休眠方式；电源键和菜单仍可请求挂起。USB-C 温度监控要求已确认拔线才能进入挂起，插着 USB-C 线或连接状态不明时，内核会拒绝本次挂起。
 
 合盖使用 GNOME 和 logind 的标准路径。启动或显示配置变化后的短暂保护窗口，以及连接外接显示器时的合盖抑制均保持原样。GDM 登录页不接收 logind 的合盖锁屏广播，插电合盖后仍按其普通闲置时间熄屏。
 
