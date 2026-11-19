@@ -11,15 +11,13 @@ let
   camera = pianoPackages.camera;
 in
 {
-  # Keep the daemon, SPA plugins and WirePlumber on the same PipeWire package.
-  nixpkgs.overlays = lib.mkIf config.services.pipewire.enable [
-    (_final: previous: {
-      pipewire = previous.callPackage ../../packages/pipewire {
-        inherit (previous) pipewire;
+  services.pipewire.package = lib.mkIf config.services.pipewire.enable (
+    lib.mkDefault (
+      pkgs.callPackage ../../packages/pipewire {
         sunuefiSrc = pianoSunuefiSrc;
-      };
-    })
-  ];
+      }
+    )
+  );
   environment.sessionVariables.GST_PLUGIN_PATH_1_0 = lib.mkIf config.services.pipewire.enable [
     "${config.services.pipewire.package}/lib/gstreamer-1.0"
   ];
@@ -40,7 +38,17 @@ in
     pkgs.v4l-utils
   ];
   services.udev.packages = [ camera ];
-  services.pipewire.wireplumber.configPackages = [ camera ];
+  services.pipewire.wireplumber = {
+    # Load the same SPA modules as the PipeWire daemon.
+    package = lib.mkIf config.services.pipewire.enable (
+      lib.mkDefault (
+        pkgs.wireplumber.override {
+          pipewire = config.services.pipewire.package;
+        }
+      )
+    );
+    configPackages = [ camera ];
+  };
   users.groups.video = { };
 
   systemd.services.piano-camerad = {
