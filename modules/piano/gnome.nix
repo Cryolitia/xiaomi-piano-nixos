@@ -2,12 +2,13 @@
   config,
   lib,
   pkgs,
-  pianoPackages,
+  pianoSunuefiSrc,
   ...
 }:
 
 let
-  powerOverlay = "${pianoPackages.bsp.src}/linux/desktops/gnome/power-overlay";
+  powerOverlay = "${pianoSunuefiSrc}/linux/bsp/power-profiles";
+  patchPackage = import ../../packages/sunuefi-patches.nix;
   powerProfiles = [
     "piano-power-saver"
     "piano-balanced"
@@ -23,14 +24,33 @@ let
 in
 {
   config = lib.mkIf config.services.desktopManager.gnome.enable {
-    # NixOS uses this package for the daemon, user units and udev rules.
     nixpkgs.overlays = [
       (_final: previous: {
         gnome-settings-daemon = previous.callPackage ../../packages/gnome-settings-daemon {
           inherit (previous) gnome-settings-daemon;
+          sunuefiSrc = pianoSunuefiSrc;
+        };
+        mutter = patchPackage {
+          inherit lib;
+          sunuefiSrc = pianoSunuefiSrc;
+          package = previous.mutter;
+          component = "mutter";
+          seriesVersion = "51.0";
         };
       })
-    ];
+    ]
+    ++ lib.optional config.services.displayManager.gdm.enable (
+      _final: previous: {
+        gdm = patchPackage {
+          inherit lib;
+          sunuefiSrc = pianoSunuefiSrc;
+          package = previous.gdm;
+          component = "gdm";
+          # Keep the distribution's own Xsession.
+          exclude = [ "0002-Xsession-no-ssh-agent.patch" ];
+        };
+      }
+    );
 
     services.tuned = {
       enable = lib.mkDefault true;
