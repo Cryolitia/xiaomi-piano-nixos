@@ -35,7 +35,7 @@ nixpkgs.config.allowUnfreePredicate = pkg:
 
 设备树使用统一的工厂基准，实际 RAM 范围和 DDR 信息由 SunUEFI 根据本次 ABL 引导数据回填。使用前先按[安装说明](docs/install.md)更新具备完整 EFI 内存图和标准设备树内存修正的 UEFI 核心；更新 NixOS 源码或 ESP 不会替代固件更新。
 
-触摸屏默认只启用手指输入。需要使用笔时，设置 `hardware.xiaomi.piano.pen.enable = true;`，同时启用笔输入和笔的蓝牙配置；默认值为 `false`。
+触摸屏和触控笔都通过内核提供标准输入。默认自动初始化蓝牙笔，可用 `hardware.xiaomi.piano.pen.enable = false;` 关闭自动初始化。
 
 启用 GNOME 后，可在“设置 → 显示”开启 HDR。Mutter 使用标准 DRM 的 PQ／BT.2020 输出，内核按面板加载随固件包提供的原厂校准并完成十位输出转换；合成与色调映射由 Mutter 处理。实现与亮度边界见[开发说明](docs/development.md#显示传感器与无线身份)。
 

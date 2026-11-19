@@ -3,6 +3,8 @@
   stdenvNoCC,
   python3,
   dtc,
+  buildPackages,
+  kernelSource,
   callPackage,
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
   panel ? "auto",
@@ -21,6 +23,7 @@ stdenvNoCC.mkDerivation {
   nativeBuildInputs = [
     python3
     dtc
+    buildPackages.stdenv.cc
   ];
 
   buildPhase = ''
@@ -28,7 +31,7 @@ stdenvNoCC.mkDerivation {
 
     # The adapter supplies Nix paths; all board data and transforms follow
     # the pinned SunUEFI source.
-    python3 ${./build.py} ${sunuefiSrc} ${panel} \
+    python3 ${./build.py} ${sunuefiSrc} ${kernelSource} ${panel} \
       ${lib.escapeShellArg (if boardDtb == null then "-" else "${boardDtb}")}
 
     runHook postBuild

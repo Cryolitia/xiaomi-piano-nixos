@@ -5,7 +5,7 @@
 }:
 
 let
-  directory = "${pianoFingerprint.src}/patches/libfprint/${lib.getVersion libfprint}";
+  directory = "${pianoFingerprint.sunuefiSrc}/patches/libfprint/${lib.getVersion libfprint}";
   series = builtins.fromJSON (builtins.readFile "${directory}/series.json");
 in
 libfprint.overrideAttrs (old: {
@@ -22,7 +22,9 @@ libfprint.overrideAttrs (old: {
       patch
     ) series.patches;
 
-  # Meson enables the platform driver when its native transport is present.
-  # Keep the existing USB drivers and the upstream test drivers available.
-  buildInputs = (old.buildInputs or [ ]) ++ [ (lib.getDev pianoFingerprint) ];
+  postPatch = (old.postPatch or "") + ''
+    backend=libfprint/drivers/piano-goodix
+    mkdir -p "$backend"
+    cp -r ${pianoFingerprint.backend}/. "$backend/"
+  '';
 })

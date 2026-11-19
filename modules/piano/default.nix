@@ -6,8 +6,9 @@
 }:
 
 let
+  sunuefiSrc = pkgs.callPackage ../../packages/sunuefi-source.nix { };
   packages = import ../../packages {
-    inherit pkgs;
+    inherit pkgs sunuefiSrc;
     withPen = config.hardware.xiaomi.piano.pen.enable;
   };
 in
@@ -23,10 +24,16 @@ in
   ];
 
   options.hardware.xiaomi.piano.pen.enable =
-    lib.mkEnableOption "stylus input and Bluetooth pen configuration";
+    lib.mkEnableOption "automatic Piano pen Bluetooth initialization"
+    // {
+      default = true;
+    };
 
   config = {
-    _module.args.pianoPackages = packages;
+    _module.args = {
+      pianoPackages = packages;
+      pianoSunuefiSrc = sunuefiSrc;
+    };
 
     nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
 

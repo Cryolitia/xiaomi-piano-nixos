@@ -3,11 +3,13 @@
   lib,
   pkgs,
   pianoPackages,
+  pianoSunuefiSrc,
   ...
 }:
 
 let
-  pen = config.hardware.xiaomi.piano.pen;
+  penBluetooth = config.hardware.xiaomi.piano.pen.enable && config.hardware.bluetooth.enable;
+  bspRules = pianoSunuefiSrc + "/linux/bsp/common/etc/udev/rules.d";
   runtime = "${pianoPackages.bsp}/libexec/piano";
 in
 {
@@ -20,23 +22,52 @@ in
     };
   };
 
-  # Finger input is native. Only the optional pen reader needs the THP stream.
-  services.udev.extraRules = lib.mkIf pen.enable ''
-    SUBSYSTEM=="spi", ATTR{modalias}=="spi:NVT-ts-spi", TAG+="systemd", ENV{SYSTEMD_READY}="0"
-    SUBSYSTEM=="spi", DRIVER=="NVT-ts-spi", TEST=="/proc/nvt_thp_stream", ENV{SYSTEMD_READY}="1", ENV{SYSTEMD_WANTS}+="piano-touch.service"
-    ${builtins.readFile (
-      pianoPackages.bsp.src + "/linux/bsp/common/etc/udev/rules.d/79-piano-pen-touch-group.rules"
-    )}
-  '';
+  services.udev.extraRules =
+    builtins.readFile (bspRules + "/79-piano-pen-touch-group.rules")
+    + lib.optionalString penBluetooth (builtins.readFile (bspRules + "/79-piano-touch.rules"));
+
+  nixpkgs.overlays = [
+    (final: previous: {
+      libwacom = previous.libwacom.overrideAttrs (old: {
+        patches =
+          (old.patches or [ ])
+          ++
+            map
+              (
+                entry:
+                let
+                  path = "${pianoSunuefiSrc}/patches/libwacom/2.20/${entry.file}";
+                in
+                assert builtins.hashFile "sha256" path == entry.sha256;
+                path
+              )
+              (
+                let
+                  series = builtins.fromJSON (
+                    builtins.readFile (pianoSunuefiSrc + "/patches/libwacom/2.20/series.json")
+                  );
+                in
+                assert lib.assertMsg (builtins.elem old.version series.versions)
+                  "The Piano SPI digitizer patch needs libwacom ${series.version}.";
+                series.patches
+              );
+      });
+    })
+  ];
 
   systemd.services = {
-    piano-touch = lib.mkIf pen.enable {
-      description = "Piano stylus input";
+    piano-touch = lib.mkIf penBluetooth {
+      description = "Initialize the Piano pen over Bluetooth";
+      after = [
+        "systemd-udev-trigger.service"
+        "bluetooth.service"
+      ];
       serviceConfig = {
         Type = "simple";
-        ExecStart = "${runtime}/touch-input";
+        ExecStart = "${runtime}/pen-control --follow";
         Restart = "on-failure";
         RestartSec = 5;
+        TimeoutStartSec = 60;
       };
     };
 

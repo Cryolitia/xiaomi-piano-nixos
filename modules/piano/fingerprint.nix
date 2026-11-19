@@ -16,7 +16,7 @@
     (final: previous: {
       libfprint = final.callPackage ../../packages/fingerprint/libfprint.nix {
         libfprint = previous.libfprint;
-        pianoFingerprint = final.callPackage ../../packages/fingerprint { };
+        pianoFingerprint = pianoPackages.fingerprint;
       };
     })
   ];

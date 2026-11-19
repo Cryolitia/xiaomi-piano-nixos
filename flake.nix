@@ -62,7 +62,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           cfg = hardwareOnly.config;
           gnome = configurations.piano-gnome.config;
-          powerOverlay = (import ./packages/sunuefi-source.nix { }) + "/linux/desktops/gnome/power-overlay";
+          powerOverlay = (import ./packages/sunuefi-source.nix { }) + "/linux/bsp/power-profiles";
         in
         {
           scripts-format =

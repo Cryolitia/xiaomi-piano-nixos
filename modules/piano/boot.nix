@@ -1,5 +1,4 @@
 {
-  config,
   lib,
   pianoPackages,
   ...
@@ -34,8 +33,8 @@
     "ext4"
   ];
 
-  # Bluetooth HID uses uhid; the optional pen reader creates a uinput device.
-  boot.kernelModules = [ "uhid" ] ++ lib.optional config.hardware.xiaomi.piano.pen.enable "uinput";
+  # Bluetooth pen reports use the ordinary HID stack.
+  boot.kernelModules = [ "uhid" ];
 
   # These are driver policies, not a userspace module-loading sequence.
   # DT disables unsupported devices; normal aliases remain enabled on all buses.

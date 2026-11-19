@@ -42,9 +42,16 @@ def copy_board(source, custom_board):
     return board, manifest
 
 
-def apply_overlays(board, source, policy, release_tools):
+def apply_overlays(board, source, kernel_source, policy, release_tools):
     work = Path("overlays")
     work.mkdir()
+    soc = (kernel_source / "arch/arm64/boot/dts/qcom/sm8750.dtsi").read_text()
+    # kernelSource is the same fixed-output source and patch application that
+    # buildLinux consumes. It has no Git worktree metadata.
+    (work / "sm8750-thermal-zones.dtsi").write_text(
+        soc[: soc.index("#include")] + release_tools.extract_thermal_zones(soc)
+    )
+    include_dirs = (work, kernel_source / "include")
     overlays = [
         release_tools.apply_cpu_model_overlay(
             board, source / policy["cpu_model_overlay"], work
@@ -54,7 +61,7 @@ def apply_overlays(board, source, policy, release_tools):
     for overlay in policy["additional_dtb_overlays"]:
         overlays.append(
             release_tools.apply_cpu_model_overlay(
-                board, source / overlay, work, cpu_only=False
+                board, source / overlay, work, cpu_only=False, include_dirs=include_dirs
             )
         )
 
@@ -64,6 +71,7 @@ def apply_overlays(board, source, policy, release_tools):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
+    parser.add_argument("kernel_source", type=Path)
     parser.add_argument("panel")
     parser.add_argument("custom_board", nargs="?", default="-")
     args = parser.parse_args()
@@ -72,7 +80,9 @@ def main():
     policy = json.loads((args.source / "config/release.json").read_text())["kernel"]
 
     board, manifest = copy_board(args.source, args.custom_board)
-    overlays = apply_overlays(board, args.source, policy, release_tools)
+    overlays = apply_overlays(
+        board, args.source, args.kernel_source, policy, release_tools
+    )
 
     # Board bindings and optional media-device policy live in the shared source.
     normalization = release_tools.normalize_mainline_bindings(board)

@@ -32,7 +32,6 @@ class ScriptInstaller:
         self.replacements = (
             ("/usr/lib/piano", str(self.libexec)),
             ("/usr/share/piano", str(self.share)),
-            ("/usr/bin/piano-touch-view", str(self.output / "bin/piano-touch-view")),
         )
 
     def write(self, name, text):
@@ -52,12 +51,8 @@ class ScriptInstaller:
 def install_runtime_scripts(source, installer, with_pen):
     if with_pen:
         installer.write(
-            "touch-input",
-            (source / "linux/userspace/pen/piano-touch-input").read_text(),
-        )
-        installer.write(
-            "pen-bluetooth",
-            (source / "linux/userspace/pen/piano-pen-bluetooth.py").read_text(),
+            "pen-control",
+            (source / "linux/bsp/common/usr/lib/piano/pen-control.py").read_text(),
         )
     installer.write(
         "usb-network",
@@ -66,11 +61,17 @@ def install_runtime_scripts(source, installer, with_pen):
 
 
 def install_shared_resources(source, installer, with_pen):
+    helpers = runtime_helpers(source)
+    for target, calibration in helpers.PEN_CALIBRATION_PATHS.items():
+        destination = installer.output / target.removeprefix("usr/")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / calibration, destination)
+
     if with_pen:
-        shutil.copytree(
-            source / "linux/bsp/common/usr/share/piano/pen",
-            installer.share / "pen",
-            dirs_exist_ok=True,
+        radio = installer.share / "pen/p81c-radio.json"
+        radio.parent.mkdir()
+        shutil.copyfile(
+            source / "linux/bsp/common/usr/share/piano/pen/p81c-radio.json", radio
         )
     shutil.copytree(
         source / "linux/bsp/common/usr/share/alsa",
@@ -79,26 +80,19 @@ def install_shared_resources(source, installer, with_pen):
     )
 
 
-def prepare_source(source, debian, macros, with_pen):
-    # Reuse the pinned board source for topology and optional pen preparation.
+def runtime_helpers(source):
     sys.path.insert(0, str(source / "tools"))
-    helpers = load_module(
-        "piano_helpers", source / "tools/build_piano_runtime_helpers.py"
-    )
-    work = Path.cwd()
-    if with_pen:
-        # The calibrated pen reader is built natively; fingers use the kernel.
-        derived, _ = helpers.derive_touch_source(debian, work)
-        shutil.copyfile(derived, work / "piano-touch-view.c")
-    helpers.build_topology(debian, macros, work / "firmware")
+    return load_module("piano_helpers", source / "tools/build_piano_runtime_helpers.py")
+
+
+def prepare_source(source, debian, macros):
+    runtime_helpers(source).build_topology(debian, macros, Path.cwd() / "firmware")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    prepare = commands.add_parser(
-        "prepare", help="build audio topology and optional pen source"
-    )
+    prepare = commands.add_parser("prepare", help="build audio topology")
     prepare.add_argument("sunuefi", type=Path)
     prepare.add_argument("debian", type=Path)
     prepare.add_argument("macros", type=Path)
@@ -107,13 +101,12 @@ def main():
     for name in ("sunuefi", "output", "shell", "python"):
         install.add_argument("--" + name, required=True)
 
-    for command in (prepare, install):
-        command.add_argument("--with-pen", action="store_true")
+    install.add_argument("--with-pen", action="store_true")
 
     args = parser.parse_args()
 
     if args.command == "prepare":
-        prepare_source(args.sunuefi, args.debian, args.macros, args.with_pen)
+        prepare_source(args.sunuefi, args.debian, args.macros)
     else:
         installer = ScriptInstaller(args)
         source = Path(args.sunuefi)

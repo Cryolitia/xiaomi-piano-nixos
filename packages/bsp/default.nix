@@ -5,7 +5,6 @@
   bash,
   coreutils,
   gnugrep,
-  gawk,
   util-linux,
   iproute2,
   git,
@@ -56,15 +55,7 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc} \
-      ${lib.optionalString withPen "--with-pen"}
-
-    ${lib.optionalString withPen ''
-      make -C linux/userspace/pen OUT="$PWD/pen-build" \
-        CC="$CC" CXX="$CXX" AR="$AR" LDLIBS=-lm
-      $CC -O2 -Ilinux/userspace/pen -c piano-touch-view.c -o touch.o
-      $CXX touch.o pen-build/libpiano-pen-core.a -lm -o piano-touch-view
-    ''}
+    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc}
 
     runHook postBuild
   '';
@@ -86,17 +77,12 @@ stdenv.mkDerivation {
       ${lib.optionalString withPen "--with-pen"}
 
     ${lib.optionalString withPen ''
-      install -Dm755 piano-touch-view "$out/bin/piano-touch-view"
-      install -Dm755 pen-build/piano-pen-offline "$out/bin/piano-pen-offline"
-      wrapProgram "$out/libexec/piano/touch-input" \
-        --prefix PATH : ${lib.makeBinPath [ gawk ]}
-      wrapProgram "$out/libexec/piano/pen-bluetooth" \
+      wrapProgram "$out/libexec/piano/pen-control" \
         --prefix GI_TYPELIB_PATH : ${lib.getLib glib}/lib/girepository-1.0
-      install -Dm644 linux/userspace/pen/Apache-2.0.txt "$out/share/licenses/piano-bsp/Apache-2.0.txt"
     ''}
 
     mkdir -p "$out/lib"
-    cp -r firmware "$out/lib/firmware"
+    cp -r firmware/. "$out/lib/firmware/"
 
     wrapProgram "$out/libexec/piano/usb-network" \
       --prefix PATH : ${

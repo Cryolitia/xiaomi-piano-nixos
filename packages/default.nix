@@ -1,21 +1,27 @@
 {
   pkgs,
+  sunuefiSrc ? pkgs.callPackage ./sunuefi-source.nix { },
   withPen ? false,
 }:
 
 let
-  kernel = pkgs.callPackage ./kernel { };
-  bsp = pkgs.callPackage ./bsp { inherit withPen; };
+  kernel = pkgs.callPackage ./kernel { inherit sunuefiSrc; };
+  bsp = pkgs.callPackage ./bsp { inherit sunuefiSrc withPen; };
+  kernelHeaders = pkgs.linuxHeaders.overrideAttrs (_: {
+    inherit (kernel) src version;
+  });
 in
 {
   inherit kernel bsp;
   kernelPackages = pkgs.linuxPackagesFor kernel;
   firmware = pkgs.callPackage ./firmware { };
-  fingerprint = pkgs.callPackage ./fingerprint { };
-  deviceTree = pkgs.callPackage ./device-tree { };
+  fingerprint = pkgs.callPackage ./fingerprint { inherit kernelHeaders sunuefiSrc; };
+  deviceTree = pkgs.callPackage ./device-tree {
+    inherit sunuefiSrc;
+    kernelSource = kernel.src;
+  };
   camera = pkgs.callPackage ./camera { };
   ffmpeg = pkgs.callPackage ./ffmpeg { };
-  pipewire = pkgs.callPackage ./pipewire { };
   sensors = pkgs.callPackage ./sensors { };
   mesa = pkgs.callPackage ./mesa { };
 }
