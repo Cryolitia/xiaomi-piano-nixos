@@ -28,30 +28,13 @@ in
 
   nixpkgs.overlays = [
     (final: previous: {
-      libwacom = previous.libwacom.overrideAttrs (old: {
-        patches =
-          (old.patches or [ ])
-          ++
-            map
-              (
-                entry:
-                let
-                  path = "${pianoSunuefiSrc}/patches/libwacom/2.20/${entry.file}";
-                in
-                assert builtins.hashFile "sha256" path == entry.sha256;
-                path
-              )
-              (
-                let
-                  series = builtins.fromJSON (
-                    builtins.readFile (pianoSunuefiSrc + "/patches/libwacom/2.20/series.json")
-                  );
-                in
-                assert lib.assertMsg (builtins.elem old.version series.versions)
-                  "The Piano SPI digitizer patch needs libwacom ${series.version}.";
-                series.patches
-              );
-      });
+      libwacom = import ../../packages/sunuefi-patches.nix {
+        inherit lib;
+        sunuefiSrc = pianoSunuefiSrc;
+        package = previous.libwacom;
+        component = "libwacom";
+        seriesVersion = lib.versions.majorMinor previous.libwacom.version;
+      };
     })
   ];
 
