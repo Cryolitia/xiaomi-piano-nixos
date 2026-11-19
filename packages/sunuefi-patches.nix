@@ -24,7 +24,7 @@ let
     };
 in
 assert lib.assertMsg (builtins.elem package.version (
-  series.versions or [ series.version ]
+  series.versions or [ (series.version or seriesVersion) ]
 )) "SunUEFI ${component} patch series ${seriesVersion} does not support ${package.version}";
 package.overrideAttrs (old: {
   patches =
