@@ -1,6 +1,8 @@
 {
   config,
+  lib,
   pianoPackages,
+  pianoSunuefiSrc,
   pkgs,
   ...
 }:
@@ -9,9 +11,17 @@ let
   camera = pianoPackages.camera;
 in
 {
-  # Use the repaired GStreamer plugin with the distribution's desktop libraries.
-  environment.sessionVariables.GST_PLUGIN_PATH_1_0 = [
-    "${pianoPackages.pipewire}/lib/gstreamer-1.0"
+  # Keep the daemon, SPA plugins and WirePlumber on the same PipeWire package.
+  nixpkgs.overlays = lib.mkIf config.services.pipewire.enable [
+    (_final: previous: {
+      pipewire = previous.callPackage ../../packages/pipewire {
+        inherit (previous) pipewire;
+        sunuefiSrc = pianoSunuefiSrc;
+      };
+    })
+  ];
+  environment.sessionVariables.GST_PLUGIN_PATH_1_0 = lib.mkIf config.services.pipewire.enable [
+    "${config.services.pipewire.package}/lib/gstreamer-1.0"
   ];
 
   # These virtual devices have no physical alias to trigger module loading.
