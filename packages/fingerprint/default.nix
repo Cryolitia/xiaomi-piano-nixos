@@ -29,10 +29,11 @@ let
     install -m644 ${lib.escapeShellArgs names} "$out/"
   '';
   backend = runCommand "piano-goodix-source" { } ''
-    mkdir -p "$out/uapi/linux"
+    mkdir -p "$out/uapi/linux" "$out/uapi/scsi"
     cp -r ${sunuefiSrc}/linux/userspace/fingerprint/. "$out/"
     cp -r ${qcbor} "$out/qcbor"
-    cp ${kernelHeaders}/include/linux/tee.h "$out/uapi/linux/tee.h"
+    cp ${kernelHeaders}/include/linux/{tee,bsg}.h "$out/uapi/linux/"
+    cp ${kernelHeaders}/include/scsi/scsi_bsg_ufs.h "$out/uapi/scsi/"
     grep -q TEE_IOC_OBJECT_INVOKE "$out/uapi/linux/tee.h"
     chmod u+w "$out/piano-goodix.c"
     substituteInPlace "$out/piano-goodix.c" --replace-fail \
