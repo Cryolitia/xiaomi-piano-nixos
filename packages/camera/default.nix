@@ -39,6 +39,7 @@ stdenv.mkDerivation {
       (lib.fileset.difference (lib.fileset.fileFilter (
         file: file.hasExt "c" || file.hasExt "h" || file.name == "Makefile" || file.name == "LICENSE-MIT"
       ) camera) (camera + "/quad"))
+      (bsp + "/common/usr/lib/udev/rules.d/70-piano-camera.rules")
       (bsp + "/optional/camera/etc/udev/rules.d/70-piano-camera.rules")
       (bsp + "/optional/camera/etc/wireplumber/wireplumber.conf.d/50-piano-camera.conf")
     ];
@@ -66,6 +67,8 @@ stdenv.mkDerivation {
   checkTarget = "check";
 
   postInstall = ''
+    install -Dm644 linux/bsp/common/usr/lib/udev/rules.d/70-piano-camera.rules \
+      "$out/lib/udev/rules.d/70-piano-camera-dma-heap.rules"
     install -Dm644 linux/bsp/optional/camera/etc/udev/rules.d/70-piano-camera.rules \
       "$out/lib/udev/rules.d/70-piano-camera.rules"
     install -Dm644 linux/bsp/optional/camera/etc/wireplumber/wireplumber.conf.d/50-piano-camera.conf \
