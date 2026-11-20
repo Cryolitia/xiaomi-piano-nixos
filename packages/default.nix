@@ -23,5 +23,5 @@ in
   camera = pkgs.callPackage ./camera { };
   ffmpeg = pkgs.callPackage ./ffmpeg { };
   sensors = pkgs.callPackage ./sensors { };
-  mesa = pkgs.callPackage ./mesa { };
+  mesa = pkgs.callPackage ./mesa { inherit sunuefiSrc; };
 }
