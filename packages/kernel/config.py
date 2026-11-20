@@ -5,24 +5,25 @@ from pathlib import Path
 import re
 
 
-HARDWARE_FRAGMENTS = (
-    "piano-bluetooth.config",
-    "piano-flash.config",
-    "piano-pen-dock.config",
-    "piano-ir.config",
-    "piano-cpucp-early.config",
-    "piano-userspace-security.config",
-    "piano-sleep.config",
-    "piano-platform.config",
-)
-
-
 def config_fragments(kernel, sunuefi):
     """Keep the upstream fragment order: later settings replace earlier ones."""
+    configs = sunuefi / "linux/configs"
+    pen_charger = configs / "piano-pen-charger.config"
+    if not pen_charger.is_file():
+        # Older SunUEFI source pins use the dock filename.
+        pen_charger = configs / "piano-pen-dock.config"
+
     return [
         kernel / "arch/arm64/configs/piano_defconfig",
         kernel / "arch/arm64/configs/piano_rootfs.config",
-        *(sunuefi / "linux/configs" / name for name in HARDWARE_FRAGMENTS),
+        configs / "piano-bluetooth.config",
+        configs / "piano-flash.config",
+        pen_charger,
+        configs / "piano-ir.config",
+        configs / "piano-cpucp-early.config",
+        configs / "piano-userspace-security.config",
+        configs / "piano-sleep.config",
+        configs / "piano-platform.config",
     ]
 
 
