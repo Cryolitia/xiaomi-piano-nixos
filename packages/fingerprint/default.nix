@@ -46,7 +46,7 @@ let
 in
 stdenv.mkDerivation {
   pname = "piano-fingerprint";
-  version = "1";
+  version = config.tools_version;
   src = backend;
   dontConfigure = true;
 

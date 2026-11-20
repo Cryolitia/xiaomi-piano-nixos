@@ -34,13 +34,13 @@ initrd 只包含根文件系统所需驱动及其依赖，由标准 udev coldplu
 
 默认启用 MiPPS 认证与 SC8541 电荷泵直充，由内核按 PPS 电源能力、电芯温度和电压决定是否进入直充。直充输入电流目标上限为 4 A，两电芯合计充电电流目标上限为 8 A，仍受温控和电源能力限制。挂起先确认电荷泵停止，恢复后重新检查充电条件；拔线会清除固件认证状态。内核同时提供电荷泵硬件看门狗和软件超时保护，无需额外用户态服务。
 
-ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。保留的 `piano-adsp` 只在 native DSI 完成接管后启动 remoteproc，避免当前 ADSP 固件影响 bootloader 留下的显示电源；驱动和下游 GLINK/GPR 服务仍自动加载。手指和触控笔由内核直接提供标准输入。BSP 安装 BOE、CSOT 两套笔校准到固件目录，libwacom 识别 SPI 数位板。设备绑定后，`piano-touch` 仅通过 BlueZ 初始化触控笔，可用 `hardware.xiaomi.piano.pen.enable` 控制自动初始化。蓝牙使用内核注册的本机地址，USB configfs 与 Type-C 插拔继续由原有服务处理。
+ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，键盘驱动自行完成上电、固件与 HID 注册。ADSP 由内核 remoteproc 按设备树自动启动。GLINK 和 GPR 驱动通过内核设备别名加载。USB 调试服务等待 Type-C 的设备角色就绪。手指和触控笔由内核直接提供标准输入。BSP 安装 BOE、CSOT 两套笔校准到固件目录，libwacom 识别 SPI 数位板。蓝牙服务使用带 SunUEFI 补丁的 BlueZ 5.88，先读取未缓存的 PnP ID，再注册 HID 设备，让内核识别触控笔型号。设备绑定后，`piano-touch` 通过 BlueZ 初始化触控笔，可用 `hardware.xiaomi.piano.pen.enable` 控制自动初始化。蓝牙使用内核注册的本机地址，USB configfs 与 Type-C 插拔继续由原有服务处理。
 
 相机和视频设备沿用普通 modalias 与延迟探测。CAMSS 和 Iris 在内核中选择 DMA 映射域；不再由启动脚本修改 IOMMU group。`v4l2loopback` 随同一代内核构建，常驻 C 程序 `piano-camerad` 负责传感器曝光、白平衡、对焦和 ISP 输出，向 PipeWire 发布前后摄像头；应用关闭后停止采集。服务以 root/video 运行，控制 socket 只供 video 组访问。WirePlumber 隐藏内部 CAMSS 入口，避免同时出现原始 ISP 与对外摄像头。
 
-相机包直接构建共享的 C/Make 与 Rust 全幅转换代码。后摄支持 3840×2160/60 fps；8160×6120 全幅 RAW10 经软件转换输出，当前平板约 0.4 fps。`piano-camera-ctl capture rear --flash --output photo.jpg` 提供后摄 PIX 模式的同步 JPEG 拍照；前摄和全幅 RDI 不接受闪光请求，普通视频应用不会自动调用该功能。完整模式表与时序限制见[共享相机说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/camera-controls.md)。
+相机包直接构建共享的 C/Make 与 Rust 全幅转换代码。后摄支持 3840×2160/60 fps；8160×6120 全幅 RAW10 经软件转换输出，当前平板约 0.4 fps。`piano-camera-ctl capture rear --flash --output photo.jpg` 提供后摄 PIX 模式的同步 JPEG 拍照；前摄和全幅 RDI 不接受闪光请求，普通视频应用不会自动调用该功能。完整模式表与时序限制见[共享相机说明](https://github.com/slwyts/Project-SunUEFI/blob/4e3a010961a470e64f4d12f0a7d8ffc217fb7b36/docs/devel/hardware/camera-controls.md)。
 
-SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和硬件地址单位一致；虚拟摄像头报告当前画面的裁剪边界和默认尺寸。独立 PipeWire 包回补首选格式转换、稳定重协商及缓冲区回收锁顺序修复，并在交给 GStreamer 下游前复制借用的 `MemPtr` 数据，避免格式切换移除映射后仍访问旧帧；FD-backed 缓冲区保留共享路径。设备模块通过标准 `GST_PLUGIN_PATH_1_0` 选用修复后的 GStreamer 插件，系统 PipeWire、GTK 和应用仍使用 nixpkgs 的原始包。
+SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和硬件地址单位一致；虚拟摄像头报告当前画面的裁剪边界和默认尺寸。独立 PipeWire 包回补首选格式转换、稳定重协商及缓冲区回收锁顺序修复，并在交给 GStreamer 下游前复制借用的 `MemPtr` 数据，避免格式切换移除映射后仍访问旧帧；FD-backed 缓冲区保留共享路径。PipeWire 与 WirePlumber 服务共用打过补丁的 PipeWire 包。会话通过 `GST_PLUGIN_PATH_1_0` 加载同一包中的 GStreamer 插件，格式不兼容时插件向应用报告协商失败。GTK 和应用仍使用 nixpkgs 的原始包。
 
 带硬件编解码补丁的 FFmpeg 作为独立包导出，用 `nix build .#ffmpeg` 构建，或用 `nix shell .#ffmpeg` 临时调用。本项目不将它加入系统环境，也不覆盖 nixpkgs 的 FFmpeg；其他应用沿用原版依赖。当前媒体设备树会同时启用 CAMCC、CAMBIST；同 SoC 的显示灭屏复位报告尚无确定驱动修复，不能用仅枚举出摄像头来代替采集与灭屏恢复验证。[上游原始报告](https://lists.openwall.net/linux-kernel/2026/10/12/599)
 
@@ -64,13 +64,13 @@ GNOME 的节能、平衡、性能三档由 NixOS 原生的 TuneD 服务及其 PP
 
 系统挂起独立于屏幕灭屏。PCIe 在 PHY 和控制器时钟均已开启后完成 RC／PHY 复位，再启动 PHY 并配置 PARF。挂起时先停止 PHY，再撤销控制器、PHY 和端点资源；PMIC GLINK altmode worker 使用上游的 freezable workqueue 修复，避免在设备恢复前访问 Type-C 硬件。该修复不覆盖 UCSI 到 DWC3 的同步角色通知路径。调试闹钟应按 `/sys/class/rtc/rtc*/name` 选择 `rtc-pm8xxx` 对应设备；清醒状态的闹钟中断不能证明 deep 挂起能恢复。[上游 GLINK 修复](https://github.com/torvalds/linux/commit/c7c56b6ec077cb96657494b8c18c2c78625035b1)
 
-传感器使用 FastRPC、libssc 和标准 SensorProxy。导入程序读取 GPT 活动槽位，通过 liblp 校验 super 元数据，再建立只读 ODM/vendor 映射、只读挂载 persist 并复制同机配置与校准数据。服务按 ADSP、配置导入、sensors PD、SensorProxy 的顺序启动。`hardware.sensor.iio.enable = false` 关闭整条 SSC 服务链；板载 SSC 不使用内核未提供的 `hid-sensor-hub`，只对该 initrd 模块作逐项排除，其余缺失模块仍会阻止构建。
+传感器使用 FastRPC、libssc 和标准 SensorProxy。导入程序读取 GPT 活动槽位，通过 liblp 校验 super 元数据，再建立只读 ODM/vendor 映射、只读挂载 persist 并复制同机配置与校准数据。FastRPC 设备就绪后启动配置导入和 sensors PD，随后启动 SensorProxy。`hardware.sensor.iio.enable = false` 关闭整条 SSC 服务链；板载 SSC 不使用内核未提供的 `hid-sensor-hub`，只对该 initrd 模块作逐项排除，其余缺失模块仍会阻止构建。
 
 GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程序。自动旋转需要未锁定方向、有效加速度计和内置屏幕，并遵循 GNOME 的触摸模式策略：Nanosic 键盘 MCU 的持久输入设备把 `keyboard_attached` 转为标准 `SW_TABLET_MODE`，取下键盘为平板模式，装回后退出。键盘和触控板的 HID 设备移除时，这个模式开关仍保留。
 
 键盘背光和麦克风指示灯通过 LED class 随键盘连接状态注册和移除，驱动保留请求亮度，包括关闭状态。GNOME 设置守护进程 50.1 回补标准 UPower 键盘背光能力的热插拔刷新：设备消失时把背光标为不可用，接回后重新读取实际范围和亮度，由 GNOME Shell 的现有控件更新显示。
 
-指纹通过原生 QTEE 客户端和 libfprint 平台驱动接入标准 fprintd、GNOME 账户设置及 PAM，支持 Linux 独立录入、持久保存、验证、删除和取消。签名 TA 与模型按共享清单校验，供客户端读取的副本保留未压缩形式。原生实现使用独立的 Gatekeeper UID、凭据和模板，状态保存在 `/var/lib/piano-goodix/<LinuxUID>/`，不读取或复制 Android 指纹模板。独立凭据的建立与授权录入使用原厂 Keymaster 和真实 HAT；RPMB 与 Android 共用，Linux UID 隔离不代表独立的物理安全存储。硬件访问由标准 fprintd 管理，GNOME 验证配置关闭 SSH 的指纹认证，保留密码登录。协议和存储边界见[共享指纹实现说明](https://github.com/Cryolitia-Forks/Project-SunUEFI/blob/main/docs/devel/hardware/led-ir-fingerprint.md)。
+指纹通过原生 QTEE 客户端和 libfprint 平台驱动接入标准 fprintd、GNOME 账户设置及 PAM，支持 Linux 独立录入、持久保存、验证、删除和取消。签名 TA 与模型按共享清单校验，供客户端读取的副本保留未压缩形式。原生实现使用独立的 Gatekeeper UID、凭据和模板，状态保存在 `/var/lib/piano-goodix/<LinuxUID>/`，不读取或复制 Android 指纹模板。独立凭据的建立与授权录入使用原厂 Keymaster 和真实 HAT；RPMB 与 Android 共用，Linux UID 隔离不代表独立的物理安全存储。硬件访问由标准 fprintd 管理，GNOME 验证配置关闭 SSH 的指纹认证，保留密码登录。协议和存储边界见[共享指纹实现说明](https://github.com/slwyts/Project-SunUEFI/blob/4e3a010961a470e64f4d12f0a7d8ffc217fb7b36/docs/devel/hardware/led-ir-fingerprint.md)。
 
 板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙公共地址由 UEFI 从只读原厂数据取得，经标准 `local-bd-address` 设备树属性交给内核；原厂地址不可用时，固件可从 SoC 身份派生稳定地址。内核通过标准接口将地址提供给 BlueZ，Linux 不再读取 persist 或通过 MGMT 改写控制器地址。
 

@@ -12,6 +12,9 @@ args@{
 
 let
   policy = builtins.fromJSON (builtins.readFile (sunuefiSrc + "/config/release.json"));
+  seriesFile = policy.kernel.patch_series;
+  patchDirectory = builtins.dirOf seriesFile;
+  series = builtins.fromJSON (builtins.readFile (sunuefiSrc + "/${seriesFile}"));
   # Unrelated UEFI, device-tree and runtime changes must not rebuild Linux.
   kernelInputs = lib.cleanSourceWith {
     name = "piano-kernel-inputs";
@@ -29,23 +32,20 @@ let
           || (type == "directory" && lib.hasPrefix (path + "/") selected)
         )
         [
-          (builtins.dirOf policy.kernel.patch_series)
+          patchDirectory
           "linux/configs"
         ];
   };
-  seriesPath = kernelInputs + "/${policy.kernel.patch_series}";
-  series = builtins.fromJSON (builtins.readFile seriesPath);
-  patchDirectory = builtins.dirOf seriesPath;
-
   # A source revision alone is insufficient: preserve the ordered series and
-  # verify each patch's bytes before handing it to the kernel builder.
+  # verify each patch in the pinned source before handing it to the builder.
+  # Evaluation can run before the filtered build input exists in the store.
   checkedPatch =
     entry:
     let
-      path = patchDirectory + "/${entry.file}";
+      relative = "${patchDirectory}/${entry.file}";
     in
-    assert builtins.hashFile "sha256" path == entry.sha256;
-    path;
+    assert builtins.hashFile "sha256" (sunuefiSrc + "/${relative}") == entry.sha256;
+    kernelInputs + "/${relative}";
 
   source = applyPatches {
     name = "linux-piano-source";
@@ -170,7 +170,7 @@ kernel.overrideAttrs (old: {
     # Check the final Kconfig result, rather than trusting requested settings
     # that the upstream kernel may have renamed or made conditional.
     for setting in MODULES BLK_DEV_INITRD RD_XZ DEVTMPFS CGROUPS FHANDLE SECCOMP EXT4_FS \
-                   IIO BATTERY_BQ27XXX_IIO QCOM_SPMI_ADC5_GEN3; do
+                   IIO BATTERY_BQ27XXX_IIO QCOM_SPMI_ADC5_GEN3 EROFS_FS_ZIP; do
       grep -qx "CONFIG_$setting=y" "$piano_config" || {
         echo "Missing required Piano/NixOS kernel setting: $setting" >&2
         exit 1
@@ -182,10 +182,11 @@ kernel.overrideAttrs (old: {
     grep -qx 'CONFIG_CMDLINE=""' "$piano_config"
     ! grep -qx 'CONFIG_CMDLINE_FORCE=y' "$piano_config"
 
-    # Missing matches otherwise leave firewall-start with partially applied rules.
-    for setting in NETFILTER_XT_MATCH_PKTTYPE IP_NF_MATCH_RPFILTER IP6_NF_MATCH_RPFILTER; do
+    # Require the firewall matches and the shared filesystem and media drivers.
+    for setting in NETFILTER_XT_MATCH_PKTTYPE IP_NF_MATCH_RPFILTER IP6_NF_MATCH_RPFILTER \
+                   EROFS_FS VIDEO_DW9768 CHARGER_SC96231; do
       grep -Eq "^CONFIG_$setting=[ym]$" "$piano_config" || {
-        echo "Missing required NixOS firewall kernel setting: $setting" >&2
+        echo "Missing required Piano/NixOS kernel setting: $setting" >&2
         exit 1
       }
     done

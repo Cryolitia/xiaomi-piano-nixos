@@ -29,10 +29,8 @@ in
 
   systemd.services.piano-usb = {
     description = "Piano USB diagnostic connection";
-    wants = [ "piano-adsp.service" ];
     bindsTo = [ "sys-subsystem-typec-devices-port0.device" ];
     after = [
-      "piano-adsp.service"
       "sys-subsystem-typec-devices-port0.device"
     ];
 

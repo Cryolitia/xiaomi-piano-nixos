@@ -8,17 +8,14 @@ import re
 def config_fragments(kernel, sunuefi):
     """Keep the upstream fragment order: later settings replace earlier ones."""
     configs = sunuefi / "linux/configs"
-    pen_charger = configs / "piano-pen-charger.config"
-    if not pen_charger.is_file():
-        # Older SunUEFI source pins use the dock filename.
-        pen_charger = configs / "piano-pen-dock.config"
-
     return [
         kernel / "arch/arm64/configs/piano_defconfig",
         kernel / "arch/arm64/configs/piano_rootfs.config",
         configs / "piano-bluetooth.config",
+        configs / "piano-filesystem.config",
+        configs / "piano-gamepad.config",
         configs / "piano-flash.config",
-        pen_charger,
+        configs / "piano-pen-charger.config",
         configs / "piano-ir.config",
         configs / "piano-cpucp-early.config",
         configs / "piano-userspace-security.config",

@@ -37,6 +37,8 @@ nixpkgs.config.allowUnfreePredicate = pkg:
 
 触摸屏和触控笔都通过内核提供标准输入。默认自动初始化蓝牙笔，可用 `hardware.xiaomi.piano.pen.enable = false;` 关闭自动初始化。
 
+指纹录入使用系统设置。需要运行指纹诊断时，在平板上用 `nix shell .#fingerprint-tools` 获取 `piano-fingerprint-ctl`。
+
 启用 GNOME 后，可在“设置 → 显示”开启 HDR。Mutter 使用标准 DRM 的 PQ／BT.2020 输出，内核按面板加载随固件包提供的原厂校准并完成十位输出转换；合成与色调映射由 Mutter 处理。实现与亮度边界见[开发说明](docs/development.md#显示传感器与无线身份)。
 
 ## 构建 GNOME 验证镜像

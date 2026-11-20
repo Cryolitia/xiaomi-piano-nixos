@@ -21,7 +21,6 @@
     })
   ];
   services.fprintd.enable = true;
-  environment.systemPackages = [ pianoPackages.fingerprint ];
 
   systemd.services.fprintd.serviceConfig = {
     StateDirectory = lib.mkAfter [ "piano-goodix" ];

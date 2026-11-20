@@ -56,12 +56,10 @@ in
       description = "Piano ADSP sensor service";
       wantedBy = [ fastrpcDevice ];
       requires = [
-        "piano-adsp.service"
         "piano-sensors-import.service"
         fastrpcDevice
       ];
       after = [
-        "piano-adsp.service"
         "piano-sensors-import.service"
         fastrpcDevice
       ];
