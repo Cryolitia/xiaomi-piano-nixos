@@ -85,8 +85,10 @@ def runtime_helpers(source):
     return load_module("piano_helpers", source / "tools/build_piano_runtime_helpers.py")
 
 
-def prepare_source(source, debian, macros):
-    runtime_helpers(source).build_topology(debian, macros, Path.cwd() / "firmware")
+def prepare_source(source, debian, macros, speaker_acdb):
+    runtime_helpers(source).build_topology(
+        debian, macros, Path.cwd() / "firmware", speaker_acdb=speaker_acdb
+    )
 
 
 def main():
@@ -96,6 +98,7 @@ def main():
     prepare.add_argument("sunuefi", type=Path)
     prepare.add_argument("debian", type=Path)
     prepare.add_argument("macros", type=Path)
+    prepare.add_argument("speaker_acdb", type=Path)
     install = commands.add_parser("install", help="install runtime scripts and data")
 
     for name in ("sunuefi", "output", "shell", "python"):
@@ -106,7 +109,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "prepare":
-        prepare_source(args.sunuefi, args.debian, args.macros)
+        prepare_source(args.sunuefi, args.debian, args.macros, args.speaker_acdb)
     else:
         installer = ScriptInstaller(args)
         source = Path(args.sunuefi)

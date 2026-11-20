@@ -15,6 +15,7 @@
   glib,
   callPackage,
   fetchFromGitHub,
+  fetchurl,
   fetchzip,
   sunuefiSrc ? callPackage ../sunuefi-source.nix { },
   withPen ? false,
@@ -34,6 +35,13 @@ let
     name = "source";
     url = "${lib.removeSuffix ".git" audioReach.url}/archive/${audioReach.commit}.tar.gz";
     hash = "sha256-J/xqKMa428ScOa/WOvoRopZpo2L70w78XRp8v7JHKRY=";
+  };
+  speakerDap =
+    (builtins.fromJSON (builtins.readFile "${sunuefiSrc}/config/release.json")).audio_topology.speaker_dap;
+  speakerAcdb = fetchurl {
+    name = "Mi_acdb_cal.acdb";
+    url = speakerDap.acdb_url;
+    sha256 = builtins.head speakerDap.acdb_sha256;
   };
   runtimePython = if withPen then python3.withPackages (ps: [ ps.pygobject3 ]) else python3;
 in
@@ -55,7 +63,7 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc}
+    python3 ${./transform.py} prepare "$PWD" ${debianPianoSrc} ${audioReachSrc} ${speakerAcdb}
 
     runHook postBuild
   '';
