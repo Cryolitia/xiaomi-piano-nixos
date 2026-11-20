@@ -26,6 +26,12 @@ in
   config = lib.mkIf config.services.desktopManager.gnome.enable {
     nixpkgs.overlays = [
       (_final: previous: {
+        gnome-control-center = patchPackage {
+          inherit lib;
+          sunuefiSrc = pianoSunuefiSrc;
+          package = previous.gnome-control-center;
+          component = "gnome-control-center";
+        };
         gnome-settings-daemon = previous.callPackage ../../packages/gnome-settings-daemon {
           inherit (previous) gnome-settings-daemon;
           sunuefiSrc = pianoSunuefiSrc;
