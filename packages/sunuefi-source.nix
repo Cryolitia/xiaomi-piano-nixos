@@ -1,6 +1,6 @@
 { }:
 # Shared hardware policy is read during evaluation, before a builder is needed.
 builtins.fetchTarball {
-  url = "https://codeload.github.com/slwyts/Project-SunUEFI/tar.gz/4e3a010961a470e64f4d12f0a7d8ffc217fb7b36";
-  sha256 = "sha256-HOfvKLcBWPYnkB5EzoxPXwaP5XB5bqma+E4OIL2rjcM=";
+  url = "file:///home/cryolitia/.local/share/xiaomi-piano-nixos/sources/Project-SunUEFI-2a114b2efce8a257f75195d59fdcdc158cd46a33.tar.gz";
+  sha256 = "sha256-PuVvfCC81Xa+neqRi40k2jpJI8b7eo3lAC1RU4SwNeE=";
 }
