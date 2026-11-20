@@ -13,6 +13,7 @@ let
   };
 in
 mesa.overrideAttrs (old: {
+  patches = (old.patches or [ ]) ++ [ ./patches/display-enumeration-render-only.patch ];
   postPatch = (old.postPatch or "") + ''
     # Newer Mesa may already know the A830v1 ID. Apply the narrow public
     # device-ID addition only when it is absent, without replacing Mesa.
