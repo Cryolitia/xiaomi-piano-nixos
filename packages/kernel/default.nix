@@ -55,8 +55,12 @@ let
       rev = series.base_commit;
       hash = "sha256-P+bNjwB204gzpltpfbI6PvV2uxPagElQIKVJopjhx/8=";
     };
-    # Keep Piano's existing CPU boost default.
     patches = map checkedPatch series.patches ++ [
+      ./patches/0001-MAILLIST-media-iris-decode-order.patch
+      ./patches/0002-MAILLIST-media-iris-capture-pool.patch
+      ./patches/0003-MAILLIST-media-iris-encoder-deblocking.patch
+      ./patches/0004-MAILLIST-media-iris-error-timestamps.patch
+      ./patches/0005-MAILLIST-media-iris-recycle-noshow.patch
       ./patches/cpufreq-scmi-piano-boost-default.patch
     ];
     postPatch = ''

@@ -9,7 +9,7 @@
 `flake.lock` 只固定 nixpkgs。内核、固件、BSP 和 Mesa 等包在各自定义中获取固定提交与 SHA256 的源码；多个包共用的 SunUEFI 来源统一维护在 `packages/sunuefi-source.nix`：
 
 - nixpkgs 提供 NixOS、GNOME、systemd-boot 和常规用户空间。
-- Linux 7.3.3 基线与 SunUEFI 的有序补丁共同组成 Piano 内核；补丁按原 `series.json` 的 SHA256 校验，NixOS 只额外保留默认启用 CPU boost 的 SCMI 策略补丁。
+- Linux 7.3.3 基线与 SunUEFI 的有序补丁共同组成 Piano 内核，补丁按原 `series.json` 的 SHA256 校验。NixOS 另外回移 Radxa 的 Iris 补丁，并用 SCMI 策略补丁默认启用 CPU boost。
 - SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM、固件覆盖清单，以及稀疏镜像打包工具。
 - debian-piano 提供板级初始化和音频拓扑构建来源；piano-firmware 提供设备固件。
 - piano-mesa 提供 A830v1 设备 ID 补丁；AudioReach 提供音频拓扑源码。
@@ -42,7 +42,11 @@ ASoC 处理声卡组件的延迟探测，DRM 管理显示、面板和背光，�
 
 SM8750 的 TFE PIX 驱动按 256 字节对齐行跨度，保证 Y、UV 平面和硬件地址单位一致；虚拟摄像头报告当前画面的裁剪边界和默认尺寸。独立 PipeWire 包回补首选格式转换、稳定重协商及缓冲区回收锁顺序修复，并在交给 GStreamer 下游前复制借用的 `MemPtr` 数据，避免格式切换移除映射后仍访问旧帧；FD-backed 缓冲区保留共享路径。PipeWire 与 WirePlumber 服务共用打过补丁的 PipeWire 包。会话通过 `GST_PLUGIN_PATH_1_0` 加载同一包中的 GStreamer 插件，格式不兼容时插件向应用报告协商失败。GTK 和应用仍使用 nixpkgs 的原始包。
 
-带硬件编解码补丁的 FFmpeg 作为独立包导出，用 `nix build .#ffmpeg` 构建，或用 `nix shell .#ffmpeg` 临时调用。本项目不将它加入系统环境，也不覆盖 nixpkgs 的 FFmpeg；其他应用沿用原版依赖。当前媒体设备树会同时启用 CAMCC、CAMBIST；同 SoC 的显示灭屏复位报告尚无确定驱动修复，不能用仅枚举出摄像头来代替采集与灭屏恢复验证。[上游原始报告](https://lists.openwall.net/linux-kernel/2026/10/12/599)
+视频编解码使用 nixpkgs 的 FFmpeg 和 Qt Multimedia。设备模块通过 `hardware.graphics.extraPackages` 安装 Radxa 的 `qcom-va-driver`，libva 根据 DRM 驱动名 `msm` 加载它。支持 VA-API 的应用通过此驱动访问 Iris，例如用 mpv 的 `hwdec=vaapi` 播放，或用 FFmpeg 的 `h264_vaapi` 编码。Chromium 的直连 V4L2 后端也可使用 Iris。
+
+从 `nix shell .#ffmpeg` 迁移时，改用 nixpkgs 的 `ffmpeg`，解码选择 VA-API，编码选择 `h264_vaapi` 或 `hevc_vaapi`。Radxa 驱动在同一解码上下文中遇到分辨率变化时需要应用重新创建上下文。硬编写入 MKV 时，可先按 [Radxa 的说明](https://github.com/radxa-pkg/qcom-va-driver#usage) 输出码流，再封装。
+
+当前媒体设备树会同时启用 CAMCC、CAMBIST；同 SoC 的显示灭屏复位报告尚无确定驱动修复，不能用仅枚举出摄像头来代替采集与灭屏恢复验证。[上游原始报告](https://lists.openwall.net/linux-kernel/2026/10/12/599)
 
 ## 显示、传感器与无线身份
 
@@ -76,7 +80,7 @@ GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程�
 
 ## 验证镜像的日志采集
 
-`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。ath12k 发送修复与 DMA 池、IOMMU 附着检查、蓝牙电源延迟探测、RPMsg 别名、PCIe 复位和 GLINK 挂起修复均由 SunUEFI 的有序内核补丁提供。NixOS 的 `packages/kernel/patches/` 只保留 `cpufreq-scmi-piano-boost-default.patch`，用于默认启用 CPU boost。内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
+`configurations/diagnostics.nix` 只由 GNOME 验证配置导入，集中设置无线调试、日志保存与 USB 采集；单独导入硬件模块不启用这些服务。ath12k 发送修复与 DMA 池、IOMMU 附着检查、蓝牙电源延迟探测、RPMsg 别名、PCIe 复位和 GLINK 挂起修复均由 SunUEFI 的有序内核补丁提供。内核构建只引用真正使用的补丁与配置片段，设备树和 UEFI 改动不触发无关重编。
 
 验证内核编入 ath12k 调试接口、trace 和固件转储；默认 `debug_mask=0x1072`，不自动打开逐包 trace。udev 在内核已经生成 devcoredump 后启动归档服务，只读快照并保存到 Linux 自己的状态目录。日志策略和归档服务均不修改原厂分区。现有 ramoops 与 UEFI 共用控制台内存布局，因此此处不改变它的地址和分配方式。
 

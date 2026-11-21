@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Xilin Wu <sophon@radxa.com>
+Date: Thu, 29 Oct 2026 11:58:07 +0800
+Subject: [PATCH] media: iris: allow larger capture buffer pools on HFI gen2
+
+VLC with VA-API frame threading can require more than the default vb2
+limit of 32 CAPTURE buffers.
+
+Raise the HFI gen2 decoder CAPTURE queue limit to 64 buffers.
+
+Link: https://lore.kernel.org/linux-media/20261029-iris-va-fixes-v1-2-44a2783f782b@radxa.com/
+Signed-off-by: Xilin Wu <sophon@radxa.com>
+---
+ drivers/media/platform/qcom/iris/iris_vidc.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/media/platform/qcom/iris/iris_vidc.c b/drivers/media/platform/qcom/iris/iris_vidc.c
+index fcbc60016beec693f2ce27927a09a2d51494bc38..4555b222808325746387159b4a1ab21e84bc7bbe 100644
+--- a/drivers/media/platform/qcom/iris/iris_vidc.c
++++ b/drivers/media/platform/qcom/iris/iris_vidc.c
+@@ -122,6 +122,9 @@ iris_m2m_queue_init(void *priv, struct vb2_queue *src_vq, struct vb2_queue *dst_
+ 	dst_vq->drv_priv = inst;
+ 	dst_vq->buf_struct_size = sizeof(struct iris_buffer);
+ 	dst_vq->min_reqbufs_allocation = MIN_BUFFERS;
++	if (inst->domain == DECODER &&
++	    inst->core->iris_firmware_data == &iris_hfi_gen2_data)
++		dst_vq->max_num_buffers = DEFAULT_MAX_HOST_BUF_COUNT;
+ 	dst_vq->dev = inst->core->dev;
+ 	dst_vq->lock = &inst->ctx_q_lock;
+ 

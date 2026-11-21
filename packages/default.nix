@@ -21,7 +21,7 @@ in
     kernelSource = kernel.src;
   };
   camera = pkgs.callPackage ./camera { };
-  ffmpeg = pkgs.callPackage ./ffmpeg { };
+  qcom-va-driver = pkgs.callPackage ./qcom-va-driver { };
   sensors = pkgs.callPackage ./sensors { };
   mesa = pkgs.callPackage ./mesa { inherit sunuefiSrc; };
 }

@@ -57,6 +57,7 @@ in
     hardware.graphics = {
       enable = lib.mkDefault true;
       package = lib.mkOverride 990 packages.mesa;
+      extraPackages = [ packages.qcom-va-driver ];
     };
 
   };

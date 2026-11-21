@@ -47,7 +47,6 @@
         in
         {
           kernel = piano.kernel;
-          ffmpeg = piano.ffmpeg;
           fingerprint-tools = piano.fingerprint;
           firmware = piano.firmware;
           device-tree = piano.deviceTree;
