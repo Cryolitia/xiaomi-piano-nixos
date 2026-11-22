@@ -21,52 +21,52 @@ let
   cpuTemps =
     cluster: firstCpu: count:
     lib.concatMapStrings (
-      core: numberedTemps "cpu_${cluster}_${toString core}_" "CPU ${toString (firstCpu + core)} 测点" 2
+      core: numberedTemps "cpu_${cluster}_${toString core}_" "CPU ${toString (firstCpu + core)} Sensor" 2
     ) (lib.range 0 (count - 1));
 in
 {
   environment.etc."sensors.d/piano.conf".text = ''
     chip "battery-*"
-      label in0 "电池组电压"
-      label temp1 "电池组温度"
+      label in0 "Battery Pack Voltage"
+      label temp1 "Battery Pack Temperature"
 
     chip "bq27z561_0-*"
-      label in0 "电芯 0 电压"
-      label temp1 "电芯 0 温度"
+      label in0 "Cell 0 Voltage"
+      label temp1 "Cell 0 Temperature"
 
     chip "bq27z561_1-*"
-      label in0 "电芯 1 电压"
-      label temp1 "电芯 1 温度"
+      label in0 "Cell 1 Voltage"
+      label temp1 "Cell 1 Temperature"
 
     chip "piano_mca_usb-*"
-      label in0 "USB 输入电压"
+      label in0 "USB Input Voltage"
 
     chip "ucsi_source_psy_pmic_glink.ucsi.01-*"
-      label in0 "USB-C 协议电压"
+      label in0 "USB-C Negotiated Voltage"
 
     chip "sc8541-*"
-      label in0 "充电泵输入电压"
-      label temp1 "充电泵芯片温度"
+      label in0 "Charge Pump Input Voltage"
+      label temp1 "Charge Pump Die Temperature"
   ''
   + cpuTemps "0" 0 6
   + cpuTemps "1" 6 2
-  + numberedTemps "cpuss_0_" "CPU 子系统 0 测点" 2
-  + numberedTemps "cpuss_1_" "CPU 子系统 1 测点" 2
-  + numberedTemps "gpuss" "GPU 测点" 8
-  + numberedTemps "camera" "SoC 相机单元" 2
-  + numberedTemps "modem" "基带测点" 4
-  + numberedTemps "aoss" "常开子系统测点" 4
-  + numberedTemps "nsphvx" "NSP HVX 测点" 3
-  + numberedTemps "nsphmx" "NSP HMX 测点" 4
+  + numberedTemps "cpuss_0_" "CPU Subsystem 0 Sensor" 2
+  + numberedTemps "cpuss_1_" "CPU Subsystem 1 Sensor" 2
+  + numberedTemps "gpuss" "GPU Sensor" 8
+  + numberedTemps "camera" "SoC Camera Block" 2
+  + numberedTemps "modem" "Modem Sensor" 4
+  + numberedTemps "aoss" "Always-On Subsystem Sensor" 4
+  + numberedTemps "nsphvx" "NSP HVX Sensor" 3
+  + numberedTemps "nsphmx" "NSP HMX Sensor" 4
   + ''
     chip "video_thermal-*"
-      label temp1 "SoC 视频单元"
+      label temp1 "SoC Video Block"
 
     chip "ddr_thermal-*"
-      label temp1 "DDR 子系统"
+      label temp1 "DDR Subsystem"
 
     chip "ath12k_hwmon-*"
-      label temp1 "Wi-Fi 芯片"
+      label temp1 "Wi-Fi Chip"
   '';
 
   # SSC is a backend of standard SensorProxy; Mutter remains responsible
