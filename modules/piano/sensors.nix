@@ -10,8 +10,65 @@
 let
   sensors = pianoPackages.sensors;
   fastrpcDevice = "${utils.escapeSystemdPath "/dev/fastrpc-adsp-secure"}.device";
+
+  numberedTemps =
+    prefix: label: count:
+    lib.concatMapStrings (i: ''
+      chip "${prefix}${toString i}_thermal-*"
+        label temp1 "${label} ${toString i}"
+    '') (lib.range 0 (count - 1));
+
+  cpuTemps =
+    cluster: firstCpu: count:
+    lib.concatMapStrings (
+      core: numberedTemps "cpu_${cluster}_${toString core}_" "CPU ${toString (firstCpu + core)} 测点" 2
+    ) (lib.range 0 (count - 1));
 in
 {
+  environment.etc."sensors.d/piano.conf".text = ''
+    chip "battery-*"
+      label in0 "电池组电压"
+      label temp1 "电池组温度"
+
+    chip "bq27z561_0-*"
+      label in0 "电芯 0 电压"
+      label temp1 "电芯 0 温度"
+
+    chip "bq27z561_1-*"
+      label in0 "电芯 1 电压"
+      label temp1 "电芯 1 温度"
+
+    chip "piano_mca_usb-*"
+      label in0 "USB 输入电压"
+
+    chip "ucsi_source_psy_pmic_glink.ucsi.01-*"
+      label in0 "USB-C 协议电压"
+
+    chip "sc8541-*"
+      label in0 "充电泵输入电压"
+      label temp1 "充电泵芯片温度"
+  ''
+  + cpuTemps "0" 0 6
+  + cpuTemps "1" 6 2
+  + numberedTemps "cpuss_0_" "CPU 子系统 0 测点" 2
+  + numberedTemps "cpuss_1_" "CPU 子系统 1 测点" 2
+  + numberedTemps "gpuss" "GPU 测点" 8
+  + numberedTemps "camera" "SoC 相机单元" 2
+  + numberedTemps "modem" "基带测点" 4
+  + numberedTemps "aoss" "常开子系统测点" 4
+  + numberedTemps "nsphvx" "NSP HVX 测点" 3
+  + numberedTemps "nsphmx" "NSP HMX 测点" 4
+  + ''
+    chip "video_thermal-*"
+      label temp1 "SoC 视频单元"
+
+    chip "ddr_thermal-*"
+      label temp1 "DDR 子系统"
+
+    chip "ath12k_hwmon-*"
+      label temp1 "Wi-Fi 芯片"
+  '';
+
   # SSC is a backend of standard SensorProxy; Mutter remains responsible
   # for the display, touch/pen transforms and genuine tablet-mode policy.
   hardware.sensor.iio = {
