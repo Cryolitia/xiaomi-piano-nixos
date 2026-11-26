@@ -20,12 +20,10 @@
     "iommu.passthrough=1"
   ];
 
-  # The ordinary udev coldplug pass probes these devices. Firmware resources
-  # and deferred probing determine their order, including GPUCC before SMMU.
+  # The Adreno SMMU uses GPUCC. The APPS SMMU can probe before initrd coldplug.
   boot.initrd.includeDefaultModules = lib.mkDefault false;
   boot.initrd.availableKernelModules = [
     "gpucc_sm8750"
-    "arm_smmu"
     "pinctrl_sm8750"
     "phy_qcom_qmp_ufs"
     "ufs_qcom"

@@ -132,9 +132,11 @@ let
           IP_NF_MATCH_RPFILTER = lib.mkDefault module;
           IP6_NF_MATCH_RPFILTER = lib.mkDefault module;
 
+          # The APPS SMMU serves built-in GENI and USB controllers as well as UFS.
+          ARM_SMMU = lib.mkForce yes;
+
           # Keep the storage-only initrd small. Other board drivers are loaded
           # by their ordinary device aliases once the full module tree is mounted.
-          ARM_SMMU = lib.mkForce module;
           DRM_MSM = lib.mkForce module;
           QCOM_Q6V5_PAS = lib.mkForce module;
           QCOM_PMIC_GLINK = lib.mkForce module;
@@ -168,7 +170,7 @@ kernel.overrideAttrs (old: {
     # that the upstream kernel may have renamed or made conditional.
     for setting in MODULES BLK_DEV_INITRD RD_XZ DEVTMPFS CGROUPS FHANDLE SECCOMP EXT4_FS \
                    IIO BATTERY_BQ27XXX_IIO QCOM_SPMI_ADC5_GEN3 EROFS_FS_ZIP \
-                   BPF_LSM DEBUG_INFO_BTF; do
+                   BPF_LSM DEBUG_INFO_BTF ARM_SMMU ARM_SMMU_QCOM; do
       grep -qx "CONFIG_$setting=y" "$piano_config" || {
         echo "Missing required Piano/NixOS kernel setting: $setting" >&2
         exit 1
@@ -200,7 +202,7 @@ kernel.overrideAttrs (old: {
 
     # These drivers must remain available to the storage-only initrd and the
     # subsequent ordinary module autoloading pass.
-    for setting in ARM_SMMU DRM_MSM QCOM_Q6V5_PAS QCOM_PMIC_GLINK PINCTRL_SM8750 \
+    for setting in DRM_MSM QCOM_Q6V5_PAS QCOM_PMIC_GLINK PINCTRL_SM8750 \
                    QCOM_GPI_DMA I2C_QCOM_GENI SPI_QCOM_GENI PHY_QCOM_QMP_PCIE \
                    SCSI_UFSHCD SCSI_UFS_QCOM PHY_QCOM_QMP_UFS; do
       grep -qx "CONFIG_$setting=m" "$piano_config" || {
