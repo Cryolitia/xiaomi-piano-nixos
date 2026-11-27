@@ -3,9 +3,8 @@ args@{
   buildLinux,
   applyPatches,
   buildPackages,
-  callPackage,
   fetchgit,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
   structuredExtraConfig ? { },
   ...
 }:
@@ -73,7 +72,6 @@ let
     "buildLinux"
     "applyPatches"
     "buildPackages"
-    "callPackage"
     "fetchgit"
     "sunuefiSrc"
     "structuredExtraConfig"
@@ -193,6 +191,12 @@ kernel.overrideAttrs (old: {
 
     # Both drivers claim pmic_glink.power-supply; only MCA may bind here.
     grep -qx '# CONFIG_BATTERY_QCOM_BATTMGR is not set' "$piano_config"
+
+    # Check the shared sleep policy. Kconfig omits this option without ath12k or PM.
+    if grep -Eq '^CONFIG_ATH12K_WOWLAN=[ym]$' "$piano_config"; then
+      echo 'WoWLAN is enabled in the Piano kernel configuration' >&2
+      exit 1
+    fi
 
     # These drivers must remain available to the storage-only initrd and the
     # subsequent ordinary module autoloading pass.

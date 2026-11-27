@@ -16,9 +16,28 @@
         "type": "github"
       }
     },
+    "project-sunuefi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795750905,
+        "narHash": "sha256-yUpF/Na61chghA09OtfJwN7Ld/01lm2XCI0VKhS+vxk=",
+        "ref": "main",
+        "rev": "efa3b9c6fa5c22d47e9103a2e802f07ff54f0f39",
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/slwyts/Project-SunUEFI.git"
+      },
+      "original": {
+        "ref": "main",
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/slwyts/Project-SunUEFI.git"
+      }
+    },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "project-sunuefi": "project-sunuefi"
       }
     }
   },

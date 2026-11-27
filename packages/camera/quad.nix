@@ -4,8 +4,7 @@
   stdenv,
   fetchCrate,
   applyPatches,
-  callPackage,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
 }:
 
 let

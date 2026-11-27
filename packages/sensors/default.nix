@@ -15,11 +15,25 @@
   erofs-utils,
   libssc,
   iio-sensor-proxy,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
 }:
 
 let
   policy = (builtins.fromJSON (builtins.readFile (sunuefiSrc + "/config/release.json"))).sensors;
+  version = "5";
+  patchDirectory = sunuefiSrc + "/patches/piano-sensors/${version}";
+  patchSeries = (builtins.fromJSON (builtins.readFile (patchDirectory + "/series.json"))).patches;
+  patchesFor =
+    package:
+    map (
+      entry:
+      let
+        path = patchDirectory + "/${entry.file}";
+      in
+      assert builtins.hashFile "sha256" path == entry.sha256;
+      builtins.path { inherit path; }
+    ) (lib.filter (entry: (entry.source_package or null) == package) patchSeries);
+
   source = applyPatches {
     name = "piano-sensors-source";
     src = fetchFromGitHub {
@@ -28,26 +42,30 @@ let
       rev = policy.commit;
       hash = "sha256-XW83OBYKBfIHKGwGkQ5umzeVC1q04qnVEsfXOgtCm3Q=";
     };
-    patches = map (path: sunuefiSrc + "/${path}") policy.patches;
+    patches = patchesFor null;
   };
 
   ssc = libssc.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [
-      "${source}/patches/libssc/0001-fix-sensor-property-types.patch"
-      "${source}/patches/libssc/0002-raw-vector-reports.patch"
-      "${source}/patches/libssc/0003-piano-ssc-vector-cli.patch"
-    ];
+    patches =
+      (old.patches or [ ])
+      ++ [
+        "${source}/patches/libssc/0001-fix-sensor-property-types.patch"
+        "${source}/patches/libssc/0002-raw-vector-reports.patch"
+        "${source}/patches/libssc/0003-piano-ssc-vector-cli.patch"
+      ]
+      ++ patchesFor "libssc";
   });
   sensorProxy = (iio-sensor-proxy.override { libssc = ssc; }).overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [
-      "${source}/patches/iio-sensor-proxy/ssc-claim-race.patch"
-    ];
+    patches =
+      (old.patches or [ ])
+      ++ [ "${source}/patches/iio-sensor-proxy/ssc-claim-race.patch" ]
+      ++ patchesFor "iio-sensor-proxy";
   });
   runtimePython = python3.withPackages (ps: [ ps.liblp ]);
 
   runtime = stdenvNoCC.mkDerivation {
     pname = "piano-sensors";
-    version = "5";
+    inherit version;
     src = source;
     nativeBuildInputs = [ makeWrapper ];
     dontConfigure = true;

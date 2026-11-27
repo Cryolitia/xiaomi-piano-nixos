@@ -1,11 +1,10 @@
 {
   lib,
   stdenv,
-  callPackage,
   fetchzip,
   runCommand,
   kernelHeaders,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
 }:
 
 let

@@ -5,8 +5,7 @@
   dtc,
   buildPackages,
   kernelSource,
-  callPackage,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
   panel ? "auto",
   boardDtb ? null,
 }:

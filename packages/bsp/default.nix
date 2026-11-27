@@ -13,11 +13,10 @@
   m4,
   alsa-utils,
   glib,
-  callPackage,
   fetchFromGitHub,
   fetchurl,
   fetchzip,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
   withPen ? false,
 }:
 
@@ -37,7 +36,8 @@ let
     hash = "sha256-J/xqKMa428ScOa/WOvoRopZpo2L70w78XRp8v7JHKRY=";
   };
   speakerDap =
-    (builtins.fromJSON (builtins.readFile "${sunuefiSrc}/config/release.json")).audio_topology.speaker_dap;
+    (builtins.fromJSON (builtins.readFile "${sunuefiSrc}/config/release.json"))
+    .audio_topology.speaker_dap;
   speakerAcdb = fetchurl {
     name = "Mi_acdb_cal.acdb";
     url = speakerDap.acdb_url;

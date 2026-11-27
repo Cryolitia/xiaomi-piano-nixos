@@ -2,11 +2,25 @@
   description = "NixOS hardware support and GNOME validation images for Xiaomi Pad 8 Pro (piano)";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.project-sunuefi = {
+    url = "git+https://github.com/slwyts/Project-SunUEFI.git?ref=main&shallow=1";
+    flake = false;
+  };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      project-sunuefi,
+    }:
     let
       lib = nixpkgs.lib;
+      # Keep stock partition backups out of the package sources.
+      sunuefiSrc = builtins.path {
+        path = project-sunuefi.outPath;
+        name = "source";
+        filter = path: _: path != "${project-sunuefi.outPath}/vendor/piano/backups";
+      };
       configurations = {
         piano-gnome = lib.nixosSystem {
           system = "aarch64-linux";
@@ -32,7 +46,7 @@
     in
     {
       nixosModules = {
-        piano = import ./modules/piano;
+        piano = import ./modules/piano { inherit sunuefiSrc; };
         default = self.nixosModules.piano;
       };
       nixosConfigurations = configurations;
@@ -43,7 +57,7 @@
             system = "aarch64-linux";
             config.allowUnfree = true;
           };
-          piano = import ./packages { inherit pkgs; };
+          piano = import ./packages { inherit pkgs sunuefiSrc; };
         in
         {
           kernel = piano.kernel;
@@ -62,7 +76,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           cfg = hardwareOnly.config;
           gnome = configurations.piano-gnome.config;
-          powerOverlay = (import ./packages/sunuefi-source.nix { }) + "/linux/bsp/power-profiles";
+          powerOverlay = sunuefiSrc + "/linux/bsp/power-profiles";
         in
         {
           scripts-format =

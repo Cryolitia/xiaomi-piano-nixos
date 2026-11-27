@@ -6,13 +6,21 @@
 
 ## 来源
 
-`flake.lock` 只固定 nixpkgs。内核、固件、BSP 和 Mesa 等包在各自定义中获取固定提交与 SHA256 的源码；多个包共用的 SunUEFI 来源统一维护在 `packages/sunuefi-source.nix`：
+`flake.lock` 固定 nixpkgs 和 `project-sunuefi`。内核、固件、BSP 和 Mesa 等包的其他源码由各包定义固定提交与 SHA256。
 
 - nixpkgs 提供 NixOS、GNOME、systemd-boot 和常规用户空间。
 - Linux 7.3.3 基线与 SunUEFI 的有序补丁共同组成 Piano 内核，补丁按原 `series.json` 的 SHA256 校验。NixOS 另外回移 Radxa 的 Iris 补丁，并用 SCMI 策略补丁默认启用 CPU boost。
 - SunUEFI 提供经过适配的设备树覆盖、BSP 代码、UCM、固件覆盖清单，以及稀疏镜像打包工具。
 - debian-piano 提供板级初始化和音频拓扑构建来源；piano-firmware 提供设备固件。
 - piano-mesa 提供 A830v1 设备 ID 补丁；AudioReach 提供音频拓扑源码。
+
+使用 `nix flake update project-sunuefi` 可单独更新 Project-SunUEFI。测试本地改动时，可在构建命令里临时覆盖来源。内核、设备树和 NixOS 模块共用本次指定的源码。
+
+```sh
+nix build .#kernel --override-input project-sunuefi git+file:///path/to/Project-SunUEFI
+```
+
+从另一个 flake 构建时，在 `project-sunuefi` 前加设备 flake 的输入名。例如 `nixos-config` 中使用 `--override-input xiaomi-piano/project-sunuefi git+file:///path/to/Project-SunUEFI`。已有的下游锁文件需先更新 `xiaomi-piano` 一次。之后的临时覆盖会保留锁文件。Git 来源只包含已由 Git 跟踪的文件，新增源码先用 `git add` 纳入。构建输入会排除 `vendor/piano/backups`。
 
 本仓库的 Nix 配置使用 MIT 许可。被引用的内核、BSP、字体及固件分别遵循其原许可；专有固件不因通过 Nix 获取而改变许可。包会保留相关许可文件，不将构建产物提交到仓库。
 
@@ -77,6 +85,8 @@ GNOME 负责旋转显示和触控、笔输入坐标；不另设旋转守护程�
 指纹通过原生 QTEE 客户端和 libfprint 平台驱动接入标准 fprintd、GNOME 账户设置及 PAM，支持 Linux 独立录入、持久保存、验证、删除和取消。签名 TA 与模型按共享清单校验，供客户端读取的副本保留未压缩形式。原生实现使用独立的 Gatekeeper UID、凭据和模板，状态保存在 `/var/lib/piano-goodix/<LinuxUID>/`，不读取或复制 Android 指纹模板。独立凭据的建立与授权录入使用原厂 Keymaster 和真实 HAT；RPMB 与 Android 共用，Linux UID 隔离不代表独立的物理安全存储。硬件访问由标准 fprintd 管理，GNOME 验证配置关闭 SSH 的指纹认证，保留密码登录。协议和存储边界见[共享指纹实现说明](https://github.com/slwyts/Project-SunUEFI/blob/4e3a010961a470e64f4d12f0a7d8ffc217fb7b36/docs/devel/hardware/led-ir-fingerprint.md)。
 
 板载无线驱动没有取得有效 MAC 时会随机生成地址。启用 NetworkManager 的系统默认使用其标准 `stable` 地址策略，让同一连接配置在保留 NetworkManager 身份数据时跨重启保持地址；连接配置中明确填写的原厂地址优先。蓝牙公共地址由 UEFI 从只读原厂数据取得，经标准 `local-bd-address` 设备树属性交给内核；原厂地址不可用时，固件可从 SoC 身份派生稳定地址。内核通过标准接口将地址提供给 BlueZ，Linux 不再读取 persist 或通过 MGMT 改写控制器地址。
+
+板载 WLAN 的系统挂起策略来自 SunUEFI 的共享 `linux/configs/piano-sleep.config`。NixOS 在构建时核对最终内核配置。
 
 ## 验证镜像的日志采集
 

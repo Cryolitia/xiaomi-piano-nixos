@@ -30,6 +30,10 @@ package.overrideAttrs (old: {
   patches =
     (old.patches or [ ])
     ++ map checkedPatch (
-      builtins.filter (entry: !(builtins.elem (builtins.baseNameOf entry.file) exclude)) series.patches
+      builtins.filter (
+        entry:
+        (!(entry ? targets) || builtins.elem "nixos" entry.targets)
+        && !(builtins.elem (builtins.baseNameOf entry.file) exclude)
+      ) series.patches
     );
 })

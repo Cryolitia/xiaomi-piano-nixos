@@ -1,3 +1,4 @@
+{ sunuefiSrc }:
 {
   config,
   lib,
@@ -6,7 +7,6 @@
 }:
 
 let
-  sunuefiSrc = pkgs.callPackage ../../packages/sunuefi-source.nix { };
   packages = import ../../packages {
     inherit pkgs sunuefiSrc;
     withPen = config.hardware.xiaomi.piano.pen.enable;

@@ -1,8 +1,7 @@
 {
   mesa,
   fetchFromGitHub,
-  callPackage,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
 }:
 
 let

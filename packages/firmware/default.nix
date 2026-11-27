@@ -2,9 +2,8 @@
   lib,
   stdenvNoCC,
   python3,
-  callPackage,
   fetchFromGitHub,
-  sunuefiSrc ? callPackage ../sunuefi-source.nix { },
+  sunuefiSrc,
 }:
 
 stdenvNoCC.mkDerivation {
